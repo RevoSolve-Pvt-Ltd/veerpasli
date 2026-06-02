@@ -93,6 +93,7 @@
    "fieldname": "collector",
    "fieldtype": "Link",
    "label": "Collector",
+   "link_filters": "[[\"Person\",\"is_collector\",\"=\",1]]",
    "options": "Person",
    "reqd": 1
   },
@@ -111,7 +112,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-02 12:48:26.053115",
+ "modified": "2026-06-02 18:28:19.254131",
  "modified_by": "Administrator",
  "module": "Veerpasli",
  "name": "Donation",
