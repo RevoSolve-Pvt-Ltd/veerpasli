@@ -9,6 +9,9 @@ readme = "README.md"
 dynamic = ["version"]
 dependencies = [
     # "frappe~=15.0.0" # Installed and managed by bench.
+    "fitz>=0.0.1.dev2",
+    "pymupdf>=1.27.2.3",
+    "pypdf>=6.12.2",
 ]
 
 [build-system]
