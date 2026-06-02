@@ -7,6 +7,7 @@
  "engine": "InnoDB",
  "field_order": [
   "page_file",
+  "json_file",
   "page_number",
   "status",
   "year"
@@ -22,7 +23,6 @@
   {
    "fieldname": "page_number",
    "fieldtype": "Int",
-   "in_list_view": 1,
    "label": "page number",
    "non_negative": 1,
    "reqd": 1
@@ -30,6 +30,8 @@
   {
    "fieldname": "status",
    "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Status",
    "options": "pending\nin process\ncompleted\nfailed",
    "reqd": 1
@@ -39,12 +41,17 @@
    "fieldtype": "Data",
    "label": "Year",
    "reqd": 1
+  },
+  {
+   "fieldname": "json_file",
+   "fieldtype": "Attach",
+   "label": "JSON file"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-02 20:56:21.617738",
+ "modified": "2026-06-03 01:36:01.064499",
  "modified_by": "Administrator",
  "module": "Veerpasli",
  "name": "Pdf page",
