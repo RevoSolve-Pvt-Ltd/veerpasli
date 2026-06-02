@@ -1,0 +1,124 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-06-02 10:47:44.878769",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "profile",
+  "section_break_psqu",
+  "gujarati_fullname",
+  "english_fullname",
+  "mobile_number",
+  "column_break_crzu",
+  "village_gujarati_name",
+  "village_english_name",
+  "is_collector",
+  "section_break_mstn",
+  "collector_locations"
+ ],
+ "fields": [
+  {
+   "fieldname": "gujarati_fullname",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Gujarati Fullname",
+   "reqd": 1
+  },
+  {
+   "fieldname": "english_fullname",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "English Fullname",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "village_gujarati_name.english_name",
+   "fieldname": "village_english_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Village English Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "village_gujarati_name",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Village Gujarati Name",
+   "options": "Village",
+   "reqd": 1
+  },
+  {
+   "fieldname": "mobile_number",
+   "fieldtype": "Phone",
+   "label": "Mobile Number",
+   "reqd": 1
+  },
+  {
+   "default": "false",
+   "fieldname": "is_collector",
+   "fieldtype": "Select",
+   "label": "Is Collector",
+   "options": "true\nfalse",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_crzu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_mstn",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "collector_locations",
+   "fieldtype": "Table MultiSelect",
+   "label": "Collector Locations",
+   "options": "Collector Location"
+  },
+  {
+   "fieldname": "section_break_psqu",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "profile",
+   "fieldtype": "Attach Image",
+   "label": "Profile"
+  }
+ ],
+ "grid_page_length": 50,
+ "image_field": "profile",
+ "index_web_pages_for_search": 1,
+ "links": [
+  {
+   "link_doctype": "Donation",
+   "link_fieldname": "haste"
+  }
+ ],
+ "modified": "2026-06-02 16:46:52.190862",
+ "modified_by": "Administrator",
+ "module": "Veerpasli",
+ "name": "Person",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "gujarati_fullname"
+}

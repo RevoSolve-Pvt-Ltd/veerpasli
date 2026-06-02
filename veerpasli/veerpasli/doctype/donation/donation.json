@@ -1,0 +1,139 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-06-02 11:42:05.151489",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "donor_information_section",
+  "haste",
+  "takti",
+  "column_break_chxz",
+  "amount_gujarati",
+  "amount_english",
+  "area_information_section",
+  "village",
+  "column_break_mwin",
+  "location",
+  "collector_information_section",
+  "collector",
+  "donors_section",
+  "list_of_donors"
+ ],
+ "fields": [
+  {
+   "fieldname": "haste",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Haste",
+   "options": "Person",
+   "reqd": 1
+  },
+  {
+   "fieldname": "takti",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Takti",
+   "options": "Person",
+   "reqd": 1
+  },
+  {
+   "fieldname": "amount_gujarati",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Amount Gujarati",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "amount_english",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Amount English",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "donor_information_section",
+   "fieldtype": "Section Break",
+   "label": "Donor Information"
+  },
+  {
+   "fieldname": "column_break_chxz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "area_information_section",
+   "fieldtype": "Section Break",
+   "label": "Area Information"
+  },
+  {
+   "fieldname": "village",
+   "fieldtype": "Link",
+   "label": "Village",
+   "options": "Village",
+   "reqd": 1
+  },
+  {
+   "fieldname": "location",
+   "fieldtype": "Link",
+   "label": "Location",
+   "options": "Location",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_mwin",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "collector_information_section",
+   "fieldtype": "Section Break",
+   "label": "Collector Information"
+  },
+  {
+   "fieldname": "collector",
+   "fieldtype": "Link",
+   "label": "Collector",
+   "options": "Person",
+   "reqd": 1
+  },
+  {
+   "fieldname": "donors_section",
+   "fieldtype": "Section Break",
+   "label": "Donors"
+  },
+  {
+   "fieldname": "list_of_donors",
+   "fieldtype": "Table",
+   "label": "List of Donors",
+   "options": "Donor"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-02 12:48:26.053115",
+ "modified_by": "Administrator",
+ "module": "Veerpasli",
+ "name": "Donation",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "haste"
+}
