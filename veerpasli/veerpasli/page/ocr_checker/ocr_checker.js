@@ -24,6 +24,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                                     <button id="mergeBoxesBtn" class="btn btn-primary btn-sm" disabled>Merge selected</button>
                                     <button id="deleteBoxBtn" class="btn btn-danger btn-sm" disabled>Delete selected</button>
                                     <button id="clearSelectionBtn" class="btn btn-secondary btn-sm" type="button">Clear selection</button>
+                                    <button id="verifyPageBtn" class="btn btn-success btn-sm d-none">Mark page verified</button>
                                 </div>
                                 <div class="ms-md-auto text-muted small">Selected: <span id="ocrCheckerSelectedCount">0</span></div>
                             </div>
@@ -57,6 +58,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
     var $mergeBtn = $content.find('#mergeBoxesBtn');
     var $deleteBtn = $content.find('#deleteBoxBtn');
     var $clearSelectionBtn = $content.find('#clearSelectionBtn');
+    var $verifyPageBtn = $content.find('#verifyPageBtn');
     var $selectedCount = $content.find('#ocrCheckerSelectedCount');
     var $detailsCard = $content.find('#ocrCheckerDetails');
     var $detailsBody = $detailsCard.find('.card-body');
@@ -65,6 +67,8 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
     var nextBoxId = 0;
     var selectedBoxIds = new Set();
     var currentImageUrl = null;
+    var currentJsonUrl = null;
+    var jsonData = null;
 
     function setStatus(message, type) {
         $status.removeClass('text-success text-danger text-muted');
@@ -107,6 +111,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             .ocr-box-original { border: 2px solid rgba(255, 0, 0, 0.75); background: rgba(255, 0, 0, 0.10); }
             .ocr-box-merged { border: 2px solid rgba(0, 123, 255, 0.75); background: rgba(0, 123, 255, 0.10); }
             .ocr-box-complete { border: 2px solid rgba(40, 167, 69, 0.85); background: rgba(40, 167, 69, 0.10); }
+            .ocr-box-verified { border: 3px solid rgba(40, 167, 69, 0.95); background: rgba(40, 167, 69, 0.15); pointer-events: none; }
             .ocr-box-selected { outline: 3px solid rgba(255, 193, 7, 0.85); outline-offset: -3px; }
             .ocr-box:hover { filter: saturate(1.2); }
                 .ocr-box-split-icon {
@@ -160,6 +165,10 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             status: status || 'original',
             selected: false,
             mergedIds: [],
+            sourceSegments: [{
+                text: segment.text,
+                boundingBox: segment.boundingBox
+            }],
             fields: {
                 name: '',
                 village: '',
@@ -235,6 +244,12 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 perWidth: splitOnLeft ? selectedWidth : remainingWidth,
                 perHeight: bb.perHeight
             },
+            sourceSegments: box.sourceSegments
+                ? JSON.parse(JSON.stringify(box.sourceSegments))
+                : [{
+                    text: box.text,
+                    boundingBox: box.boundingBox
+                }],
             status: box.status,
             selected: false,
             mergedIds: box.mergedIds.slice(),
@@ -255,6 +270,12 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 perWidth: splitOnLeft ? remainingWidth : selectedWidth,
                 perHeight: bb.perHeight
             },
+            sourceSegments: box.sourceSegments
+                ? JSON.parse(JSON.stringify(box.sourceSegments))
+                : [{
+                    text: box.text,
+                    boundingBox: box.boundingBox
+                }],
             status: box.status,
             selected: false,
             mergedIds: box.mergedIds.slice(),
@@ -293,36 +314,24 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             var html = '<div class="ocr-checker-modal">';
             html += '<div class="mb-3"><strong>Combined box text</strong></div>';
             
-            var remainingTokens = tokens.filter(function(token, index) {
-                var isAssigned = false;
-                for (var field in box.fields) {
-                    if (field !== 'entryType' && box.fields[field]) {
-                        var fieldTokenIndices = [];
-                        var checkText = '';
-                        for (var i = 0; i < tokens.length; i++) {
-                            if (tokens[i].value.trim()) {
-                                checkText += tokens[i].value;
-                            }
-                        }
-                        if (checkText.indexOf(tokens[index].value.trim()) !== -1 && box.fields[field].indexOf(tokens[index].value.trim()) !== -1) {
-                            for (var j = 0; j < tokens.length; j++) {
-                                if (box.fields[field].indexOf(tokens[j].value.trim()) !== -1) {
-                                    fieldTokenIndices.push(j);
-                                }
-                            }
-                            if (fieldTokenIndices.indexOf(index) !== -1) {
-                                isAssigned = true;
-                                break;
-                            }
+            var assignedTokenSet = new Set();
+            for (var field in box.fields) {
+                if (field !== 'entryType' && box.fields[field]) {
+                    var fieldValue = box.fields[field];
+                    for (var i = 0; i < tokens.length; i++) {
+                        if (fieldValue.indexOf(tokens[i].value.trim()) !== -1) {
+                            assignedTokenSet.add(i);
                         }
                     }
                 }
-                return !isAssigned;
+            }
+            var remainingTokens = tokens.filter(function(token, index) {
+                return !assignedTokenSet.has(index);
             });
             
             html += '<div class="ocr-token-container mb-3" style="padding: 0.75rem; border: 1px solid #dee2e6; border-radius: 4px; background: #fff; min-height: 60px; max-height: 150px; overflow-y: auto;">';
             if (remainingTokens.length > 0) {
-                remainingTokens.forEach(function(token, index) {
+                remainingTokens.forEach(function(token) {
                     var originalIndex = tokens.indexOf(token);
                     var cssClass = 'ocr-token';
                     if (selectedTokenIds.has(originalIndex)) {
@@ -422,11 +431,12 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                     if (r.exc) {
                         setStatus('Unable to create entry: ' + (r.exc && r.exc.message ? r.exc.message : r.message), 'text-danger');
                     } else {
-                        box.status = 'complete';
+                        box.status = 'verified';
                         box.fields.entryType = selectedEntryType;
+                        saveVerifiedBoxToJson(box);
                         renderBoxes();
                         renderControls();
-                        setStatus('Created ' + selectedEntryType + ' entry successfully.', 'text-success');
+                        setStatus('Created ' + selectedEntryType + ' entry and marked as verified.', 'text-success');
                         dialog.hide();
                     }
                 },
@@ -619,14 +629,79 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         });
     }
 
+    function removeSegmentForBox(box) {
+        if (!jsonData || !Array.isArray(jsonData.segments)) {
+            return false;
+        }
+
+        var removed = false;
+
+        var segmentsToRemove = box.sourceSegments || [{
+            text: box.text,
+            boundingBox: box.boundingBox
+        }];
+
+        jsonData.segments = jsonData.segments.filter(function(segment) {
+
+            var shouldRemove = segmentsToRemove.some(function(source) {
+
+                return (
+                    segment.text === source.text &&
+                    JSON.stringify(segment.boundingBox) ===
+                    JSON.stringify(source.boundingBox)
+                );
+            });
+
+            if (shouldRemove) {
+                removed = true;
+                return false;
+            }
+
+            return true;
+        });
+
+        return removed;
+    }
+
+    function persistJsonData() {
+        if (!currentJsonUrl || !jsonData) {
+            return;
+        }
+
+        frappe.call({
+            method: 'veerpasli.veerpasli.doctype.pdf_page.pdf_page.save_json_file',
+            args: {
+                json_url: currentJsonUrl,
+                json_data: JSON.stringify(jsonData)
+            },
+            callback: function(r) {
+                if (r.exc) {
+                    console.error('Failed to save JSON file:', r.exc);
+                }
+            }
+        });
+    }
+
     function deleteSelectedBoxes() {
         if (selectedBoxIds.size === 0) {
             return;
         }
+
+        var removedFromJson = false;
         boxes = boxes.filter(function(box) {
-            return !selectedBoxIds.has(box.id);
+            if (selectedBoxIds.has(box.id)) {
+                if (removeSegmentForBox(box)) {
+                    removedFromJson = true;
+                }
+                return false;
+            }
+            return true;
         });
+
         selectedBoxIds.clear();
+        if (removedFromJson) {
+            persistJsonData();
+        }
         renderBoxes();
         renderControls();
         setStatus('Deleted selected box(es).', 'text-success');
@@ -638,12 +713,29 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         $mergeBtn.prop('disabled', selectedCount < 2);
         $deleteBtn.prop('disabled', selectedCount === 0);
         $clearSelectionBtn.prop('disabled', selectedCount === 0);
+
+        if (allBoxesVerified()) {
+            $verifyPageBtn.removeClass('d-none');
+        } else {
+            $verifyPageBtn.addClass('d-none');
+        }
+    }
+
+    function allBoxesVerified() {
+        return boxes.length > 0 && boxes.every(function(box) {
+            return box.status === 'verified';
+        });
     }
 
 
     function onBoxClick(boxId) {
         var box = boxes.find(function(item) { return item.id === boxId; });
         if (!box) {
+            return;
+        }
+
+        if (box.status === 'verified') {
+            frappe.msgprint('This box has been verified and cannot be edited.');
             return;
         }
 
@@ -689,6 +781,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             status: 'merged',
             selected: false,
             mergedIds: selectedBoxes.map(function(box) { return box.id; }),
+            sourceSegments: [],
             fields: {
                 name: '',
                 village: '',
@@ -696,6 +789,18 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 phone: ''
             }
         };
+
+        selectedBoxes.forEach(function(box) {
+            if (box.sourceSegments) {
+                mergedBox.sourceSegments =
+                    mergedBox.sourceSegments.concat(box.sourceSegments);
+            } else {
+                mergedBox.sourceSegments.push({
+                    text: box.text,
+                    boundingBox: box.boundingBox
+                });
+            }
+        });
 
         boxes = boxes.filter(function(box) {
             return !selectedBoxIds.has(box.id);
@@ -747,16 +852,17 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 top: top + '%',
                 width: boxWidth + '%',
                 height: boxHeight + '%',
-                pointerEvents: 'auto'
+                pointerEvents: box.status === 'verified' ? 'none' : 'auto'
             });
 
             $box.addClass(
+                box.status === 'verified' ? 'ocr-box-verified' :
                 box.status === 'complete' ? 'ocr-box-complete' :
                 box.status === 'merged' ? 'ocr-box-merged' :
                 'ocr-box-original'
             );
 
-            if (box.selected) {
+            if (box.selected && box.status !== 'verified') {
                 $box.addClass('ocr-box-selected');
                 var $splitIcon = $(
                     '<button class="ocr-box-split-icon" type="button" title="Split box">✂</button>'
@@ -777,6 +883,30 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         });
     }
 
+    function saveVerifiedBoxToJson(box) {
+        if (!jsonData || !currentJsonUrl) {
+            return;
+        }
+
+        if (!Array.isArray(jsonData.verified)) {
+            jsonData.verified = [];
+        }
+
+        removeSegmentForBox(box);
+
+        var verifiedBox = {
+            id: box.id,
+            text: box.text,
+            boundingBox: box.boundingBox,
+            fields: box.fields,
+            sourceSegments: box.sourceSegments || [],
+            timestamp: new Date().toISOString()
+        };
+
+        jsonData.verified.push(verifiedBox);
+        persistJsonData();
+    }
+
     function loadFromUrls(imageUrl, jsonUrl) {
         if (!imageUrl || !jsonUrl) {
             clearPreview();
@@ -789,6 +919,8 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         selectedBoxIds.clear();
         boxes = [];
         nextBoxId = 0;
+        currentImageUrl = imageUrl;
+        currentJsonUrl = jsonUrl;
 
         fetch(jsonUrl, { credentials: 'include' })
             .then(function(response) {
@@ -797,11 +929,35 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 }
                 return response.json();
             })
-            .then(function(jsonData) {
-                var segments = Array.isArray(jsonData.segments) ? jsonData.segments : [];
+            .then(function(data) {
+                jsonData = data;
+                var segments = Array.isArray(data.segments) ? data.segments : [];
+                var verified = Array.isArray(data.verified) ? data.verified : [];
+
+                verified.forEach(function(verifiedBox) {
+                    if (verifiedBox && verifiedBox.boundingBox) {
+                        var boxObj = createBox(verifiedBox, 'verified');
+                        boxObj.fields = verifiedBox.fields || boxObj.fields;
+                        boxes.push(boxObj);
+                    }
+                });
+
+                var verifiedKeys = verified.map(function(verifiedBox) {
+                    return JSON.stringify({
+                        text: verifiedBox.text,
+                        boundingBox: verifiedBox.boundingBox
+                    });
+                });
+
                 segments.forEach(function(segment) {
                     if (segment && segment.boundingBox) {
-                        boxes.push(createBox(segment, 'original'));
+                        var key = JSON.stringify({
+                            text: segment.text,
+                            boundingBox: segment.boundingBox
+                        });
+                        if (verifiedKeys.indexOf(key) === -1) {
+                            boxes.push(createBox(segment, 'original'));
+                        }
                     }
                 });
 
@@ -809,12 +965,11 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
 
                 $image.off('load.autoLoad error.autoLoad');
                 $image.one('load.autoLoad', function() {
-                    currentImageUrl = imageUrl;
                     $imageWrapper.show();
                     $image.show();
                     renderBoxes();
                     renderControls();
-                    setStatus('Rendered ' + boxes.length + ' boxes.', 'text-success');
+                    setStatus('Rendered ' + boxes.length + ' boxes (' + segments.length + ' original, ' + verified.length + ' verified).', 'text-success');
                 });
                 $image.one('error.autoLoad', function() {
                     setStatus('Failed to load image from URL.', 'text-danger');
@@ -840,6 +995,28 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
 
     $mergeBtn.on('click', mergeSelectedBoxes);
     $deleteBtn.on('click', deleteSelectedBoxes);
+    $verifyPageBtn.on('click', function() {
+        if (!currentJsonUrl) {
+            frappe.msgprint('JSON file URL is missing.');
+            return;
+        }
+
+        frappe.call({
+            method: 'veerpasli.veerpasli.doctype.pdf_page.pdf_page.mark_pdf_page_verified',
+            args: {
+                json_url: currentJsonUrl,
+                image_url: currentImageUrl
+            },
+            callback: function(r) {
+                if (r.exc) {
+                    frappe.msgprint('Failed to mark page verified: ' + (r.exc && r.exc.message ? r.exc.message : r.message));
+                } else {
+                    setStatus('Pdf page marked verified.', 'text-success');
+                    $verifyPageBtn.addClass('d-none');
+                }
+            }
+        });
+    });
     $clearSelectionBtn.on('click', function() {
         selectedBoxIds.clear();
         boxes.forEach(function(box) {

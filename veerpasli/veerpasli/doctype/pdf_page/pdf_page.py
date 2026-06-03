@@ -281,6 +281,57 @@ def process_ocr_box(image_url, box):
 	}
 
 
+@frappe.whitelist()
+def save_json_file(json_url, json_data):
+	if not json_url:
+		frappe.throw("JSON URL is required.")
+
+	if isinstance(json_data, str):
+		json_data = frappe.parse_json(json_data)
+
+	if not isinstance(json_data, dict):
+		frappe.throw("Invalid JSON payload.")
+
+	json_disk_path = frappe.get_site_path(json_url.lstrip('/'))
+	if not os.path.exists(json_disk_path):
+		frappe.throw(f"JSON file not found at {json_disk_path}")
+
+	try:
+		with open(json_disk_path, 'w', encoding='utf-8') as f:
+			f.write(frappe.as_json(json_data, indent=2))
+	except Exception as e:
+		frappe.throw(f"Failed to save JSON file: {str(e)}")
+
+	return {
+		'success': True
+	}
+
+
+@frappe.whitelist()
+def mark_pdf_page_verified(json_url=None, image_url=None):
+	filters = {}
+	if json_url:
+		filters['json_file'] = json_url
+	if image_url:
+		filters['page_file'] = image_url
+
+	if not filters:
+		frappe.throw('Either json_url or image_url is required.')
+
+	pdf_pages = frappe.get_all('Pdf page', filters=filters, fields=['name'], limit_page_length=1)
+	if not pdf_pages:
+		frappe.throw('Pdf page not found for the provided file URL.')
+
+	doc = frappe.get_doc('Pdf page', pdf_pages[0].name)
+	doc.db_set('status', 'verified')
+	frappe.db.commit()
+
+	return {
+		'success': True,
+		'page': doc.name
+	}
+
+
 def extract_location_from_image_url(image_url):
 	parsed = urlparse(image_url)
 	path = unquote(parsed.path or image_url)
