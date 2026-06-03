@@ -197,6 +197,90 @@ def process_ocr_page(image_url, boxes):
 	}
 
 
+@frappe.whitelist()
+def process_ocr_box(image_url, box):
+	if not image_url:
+		frappe.throw("Image URL is required to determine page location.")
+
+	if isinstance(box, str):
+		box = frappe.parse_json(box)
+
+	if not isinstance(box, dict):
+		frappe.throw("Invalid box payload.")
+
+	entry_type = (box.get('type') or '').strip().lower()
+	fields = box.get('fields') or {}
+	name = (fields.get('name') or '').strip()
+	village_name = (fields.get('village') or '').strip()
+	amount = (fields.get('amount') or '').strip()
+	phone = (fields.get('phone') or '').strip()
+
+	if entry_type not in ('collector', 'donation'):
+		frappe.throw("Entry type must be Collector or Donation.")
+
+	if not name:
+		frappe.throw("Name is required.")
+
+	location_name = extract_location_from_image_url(image_url)
+	if not location_name:
+		frappe.throw("Unable to parse location from image filename.")
+
+	location_doc = get_or_create_location(location_name)
+
+	if entry_type == 'collector':
+		if not village_name:
+			frappe.throw("Village is required for Collector.")
+
+		village_doc = get_or_create_village(village_name)
+
+		person = get_or_create_person(
+			name,
+			village_doc,
+			phone or '',
+			is_collector=True,
+			location_name=location_doc.name
+		)
+
+		return {
+			'type': 'collector',
+			'person': person.name
+		}
+
+	if not amount:
+		frappe.throw("Amount is required for Donation.")
+
+	village_doc = get_or_create_village(village_name or 'Unknown Village')
+
+	donor = get_or_create_person(
+		name,
+		village_doc,
+		phone or '',
+		is_collector=False
+	)
+
+	collector = find_collector_for_location(location_doc.name)
+	if not collector:
+		frappe.throw(
+			f"No collector person found for location {location_doc.name}. Create a Collector entry first."
+		)
+
+	donation = frappe.get_doc({
+		'doctype': 'Donation',
+		'takti': donor.name,
+		'amount_gujarati': amount,
+		'amount_english': parse_amount_english(amount),
+		'village': village_doc.name,
+		'location': location_doc.name,
+		'collector': collector.name
+	})
+	donation.insert(ignore_permissions=True)
+
+	return {
+		'type': 'donation',
+		'donation': donation.name
+	}
+
+
 def extract_location_from_image_url(image_url):
 	parsed = urlparse(image_url)
 	path = unquote(parsed.path or image_url)
@@ -257,7 +341,11 @@ def get_or_create_person(name, village_doc, mobile_number, is_collector=False, l
 	name = (name or '').strip() or mobile_number or 'Unknown Person'
 	# Normalize mobile number to Indian format when possible
 	mobile_number = normalize_mobile_number(mobile_number)
-	docname = frappe.db.get_value('Person', {'gujarati_fullname': name})
+	docname = None
+	if mobile_number:
+		docname = frappe.db.get_value('Person', {'mobile_number': mobile_number})
+	if not docname:
+		docname = frappe.db.get_value('Person', {'gujarati_fullname': name})
 	if docname:
 		person = frappe.get_doc('Person', docname)
 		if is_collector and person.is_collector != 'true':
