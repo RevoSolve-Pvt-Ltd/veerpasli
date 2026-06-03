@@ -81,6 +81,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 $image.off('load.autoLoad error.autoLoad');
                 $image.one('load.autoLoad', function() {
                     $imageWrapper.show();
+                    $image.show();
                     renderBoxes(jsonData);
                     setStatus('Rendered ' + (Array.isArray(jsonData.segments) ? jsonData.segments.length : 0) + ' boxes.', 'text-success');
                 });
@@ -129,37 +130,30 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
 
         segments.forEach(function(segment) {
             var bb = segment.boundingBox || {};
-            var pixelCoords = bb.pixelCoords || {};
-            var x = pixelCoords.x;
-            var y = pixelCoords.y;
-            var width = pixelCoords.width;
-            var height = pixelCoords.height;
 
-            if (x == null || y == null || width == null || height == null) {
-                if (bb.centerPerX != null && bb.centerPerY != null && bb.perWidth != null && bb.perHeight != null) {
-                    x = Math.round((bb.centerPerX - bb.perWidth / 2) * naturalWidth);
-                    y = Math.round((bb.centerPerY - bb.perHeight / 2) * naturalHeight);
-                    width = Math.round(bb.perWidth * naturalWidth);
-                    height = Math.round(bb.perHeight * naturalHeight);
-                } else {
-                    return;
-                }
+            if (
+                bb.centerPerX == null ||
+                bb.centerPerY == null ||
+                bb.perWidth == null ||
+                bb.perHeight == null
+            ) {
+                return;
             }
 
-            var left = x * scaleX;
-            var top = y * scaleY;
-            var boxWidth = width * scaleX;
-            var boxHeight = height * scaleY;
+            var left = (bb.centerPerX - bb.perWidth / 2) * 100;
+            var top = (bb.centerPerY - bb.perHeight / 2) * 100;
+            var boxWidth = bb.perWidth * 100;
+            var boxHeight = bb.perHeight * 100;
 
             var $box = $(
                 '<div class="ocr-box" title="' + frappe.utils.escape_html(segment.text || '') + '"></div>'
             );
             $box.css({
                 position: 'absolute',
-                left: left + 'px',
-                top: top + 'px',
-                width: Math.max(2, boxWidth) + 'px',
-                height: Math.max(2, boxHeight) + 'px',
+                left: left + '%',
+                top: top + '%',
+                width: boxWidth + '%',
+                height: boxHeight + '%',
                 border: '2px solid rgba(255, 0, 0, 0.75)',
                 background: 'rgba(255, 0, 0, 0.10)',
                 boxSizing: 'border-box',
