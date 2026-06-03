@@ -18,6 +18,15 @@ frappe.ui.form.on("Pdf page", {
 					}
 				});
 			});
+
+			if (frm.doc.json_file) {
+				frm.add_custom_button(__('Open OCR Checker'), function() {
+					var image_url = frm.doc.page_file;
+					var json_url = frm.doc.json_file;
+					var ocr_route = '/app/ocr-checker?image=' + encodeURIComponent(image_url) + '&json=' + encodeURIComponent(json_url);
+					window.open(ocr_route, '_blank');
+				});
+			}
 		}
 	},
 });
