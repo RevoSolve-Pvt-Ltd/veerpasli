@@ -42,10 +42,17 @@ def process_image(docname):
 				from frappe.utils.file_manager import save_file
 				with open(json_disk_path, "r") as f:
 					file_content = f.read()
-					
-				os.remove(json_disk_path)
 				
-				orig_file_name = frappe.db.get_value("File", {"file_url": doc.page_file, "attached_to_name": doc.name}, "file_name")
+				os.remove(json_disk_path)
+				orig_file_name = frappe.db.get_value(
+					"File",
+					{
+						"file_url": doc.page_file,
+						"attached_to_doctype": "Pdf page",
+						"attached_to_name": doc.name,
+					},
+					"file_name"
+				)
 				if not orig_file_name:
 					orig_file_name = os.path.basename(doc.page_file)
 				clean_json_name = os.path.splitext(orig_file_name)[0] + '.json'
@@ -60,7 +67,7 @@ def process_image(docname):
 					is_private=1 if doc.page_file.startswith("/private") else 0,
 					df="json_file"
 				)
-				file_doc = frappe.get_doc('File', out)
+				file_doc = out if hasattr(out, "doctype") else frappe.get_doc('File', out)
 				doc.db_set('json_file', file_doc.file_url)
 
 			doc.db_set("status", "completed")
