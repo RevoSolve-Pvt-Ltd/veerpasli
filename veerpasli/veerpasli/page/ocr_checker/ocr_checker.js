@@ -11,7 +11,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 <div class="col-12">
                     <div class="card mb-4">
                         <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start mb-3 gap-2">
                                 <div>
                                     <h5 class="card-title">OCR Checker</h5>
                                     <p class="text-muted mb-0">Open this page from a Pdf Page. The image and JSON files will load automatically and render bounding boxes.</p>
@@ -19,11 +19,23 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                                 <span id="ocrCheckerSegmentCount" class="badge bg-secondary">0 segments</span>
                             </div>
 
-                            <div id="ocrCheckerFrame" class="d-flex justify-content-center bg-light border" style="min-height: 620px;">
-                                <div id="ocrCheckerImageWrapper" class="position-relative d-inline-block" style="display: none;">
+                            <div id="ocrCheckerControls" class="d-flex flex-column flex-md-row align-items-start gap-2 mb-3">
+                                <div class="d-flex flex-wrap gap-2">
+                                    <button id="mergeBoxesBtn" class="btn btn-primary btn-sm" disabled>Merge selected</button>
+                                    <button id="clearSelectionBtn" class="btn btn-secondary btn-sm" type="button">Clear selection</button>
+                                </div>
+                                <div class="ms-md-auto text-muted small">Selected: <span id="ocrCheckerSelectedCount">0</span></div>
+                            </div>
+
+                            <div id="ocrCheckerFrame" class="d-flex justify-content-center bg-light border" style="min-height: 620px; position: relative;">
+                                <div id="ocrCheckerImageWrapper" class="position-relative d-inline-block" style="display: none; max-width: 100%;">
                                     <img id="ocrCheckerImage" src="" class="img-fluid" />
                                     <div id="ocrCheckerOverlay" class="position-absolute" style="top: 0; left: 0; width: 100%; height: 100%;"></div>
                                 </div>
+                            </div>
+
+                            <div id="ocrCheckerDetails" class="card mt-3 d-none">
+                                <div class="card-body"></div>
                             </div>
 
                             <div id="ocrCheckerStatus" class="mt-3 text-muted"></div>
@@ -41,6 +53,15 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
     var $image = $content.find('#ocrCheckerImage');
     var $imageWrapper = $content.find('#ocrCheckerImageWrapper');
     var $overlay = $content.find('#ocrCheckerOverlay');
+    var $mergeBtn = $content.find('#mergeBoxesBtn');
+    var $clearSelectionBtn = $content.find('#clearSelectionBtn');
+    var $selectedCount = $content.find('#ocrCheckerSelectedCount');
+    var $detailsCard = $content.find('#ocrCheckerDetails');
+    var $detailsBody = $detailsCard.find('.card-body');
+
+    var boxes = [];
+    var nextBoxId = 0;
+    var selectedBoxIds = new Set();
 
     function setStatus(message, type) {
         $status.removeClass('text-success text-danger text-muted');
@@ -52,12 +73,401 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         return new URLSearchParams(window.location.search).get(name);
     }
 
+    function initStyles() {
+        if (document.getElementById('ocrCheckerStyles')) {
+            return;
+        }
+
+        var style = document.createElement('style');
+        style.id = 'ocrCheckerStyles';
+        style.innerHTML = `
+            .ocr-box { position: absolute; box-sizing: border-box; cursor: pointer; transition: border-color 0.2s ease, background-color 0.2s ease; }
+            .ocr-box-original { border: 2px solid rgba(255, 0, 0, 0.75); background: rgba(255, 0, 0, 0.10); }
+            .ocr-box-merged { border: 2px solid rgba(0, 123, 255, 0.75); background: rgba(0, 123, 255, 0.10); }
+            .ocr-box-complete { border: 2px solid rgba(40, 167, 69, 0.85); background: rgba(40, 167, 69, 0.10); }
+            .ocr-box-selected { outline: 3px solid rgba(255, 193, 7, 0.85); outline-offset: -3px; }
+            .ocr-box:hover { filter: saturate(1.2); }
+            .ocr-checker-field { margin-bottom: 1rem; }
+            .ocr-token { display: inline-block; padding: 0.12rem 0.25rem; margin: 0 0.1rem 0.1rem 0; border-radius: 3px; transition: background-color 0.2s ease, color 0.2s ease; cursor: pointer; }
+            .ocr-token-selected { color: #fff; border: 1px solid transparent; }
+            .ocr-token-name.ocr-token-selected { background-color: #0d6efd; }
+            .ocr-token-village.ocr-token-selected { background-color: #6610f2; }
+            .ocr-token-amount.ocr-token-selected { background-color: #fd7e14; }
+            .ocr-token-phone.ocr-token-selected { background-color: #198754; }
+        `;
+        document.head.appendChild(style);
+    }
+
     function clearPreview() {
         $image.attr('src', '').hide();
         $imageWrapper.hide();
         $overlay.empty();
         $segmentCount.text('0 segments');
+        $detailsCard.addClass('d-none');
+        selectedBoxIds.clear();
+        boxes = [];
+        nextBoxId = 0;
+        $selectedCount.text('0');
         setStatus('Open this page from a Pdf page with image and JSON query parameters.');
+    }
+
+    function createBox(segment, status) {
+        return {
+            id: nextBoxId++,
+            text: segment.text || '',
+            boundingBox: segment.boundingBox || null,
+            status: status || 'original',
+            selected: false,
+            mergedIds: [],
+            fields: {
+                name: '',
+                village: '',
+                amount: '',
+                phone: ''
+            }
+        };
+    }
+
+    var fieldNames = ['name', 'village', 'amount', 'phone'];
+
+    function isCompleteBox(box) {
+        return box.fields.name && box.fields.village && (box.fields.amount || box.fields.phone);
+    }
+
+    function tokenizeText(text) {
+        var tokens = [];
+        var regex = /(\S+\s*)/g;
+        var match;
+        while ((match = regex.exec(text))) {
+            tokens.push({
+                value: match[1],
+                label: match[1].trim()
+            });
+        }
+        return tokens;
+    }
+
+    function renderFieldLabels(box, $box) {
+        fieldNames.forEach(function(field, index) {
+            if (box.fields[field]) {
+                var label = field.charAt(0).toUpperCase() + field.slice(1) + ': ' + box.fields[field];
+                var top = 4 + index * 20;
+                var $label = $('<div class="ocr-field-label"></div>').text(label).css({ top: top + 'px' });
+                $box.append($label);
+            }
+        });
+    }
+
+    function openMergedBoxModal(box) {
+        var tokens = tokenizeText(box.text || '');
+        var activeField = null;
+        var selectedTokenIds = new Set();
+
+        function renderModalContent() {
+            var html = '<div class="ocr-checker-modal">';
+            html += '<div class="mb-3"><strong>Combined box text</strong></div>';
+            html += '<div class="ocr-token-container mb-3" style="padding: 0.75rem; border: 1px solid #dee2e6; border-radius: 4px; background: #fff; max-height: 260px; overflow-y: auto;">';
+            tokens.forEach(function(token, index) {
+                var cssClass = 'ocr-token';
+                if (selectedTokenIds.has(index)) {
+                    cssClass += ' ocr-token-selected';
+                    if (activeField) {
+                        cssClass += ' ocr-token-' + activeField;
+                    }
+                }
+                html += '<span class="' + cssClass + '" data-token-index="' + index + '">' + frappe.utils.escape_html(token.value) + '</span>';
+            });
+            html += '</div>';
+            html += '<div class="mb-3"><strong>Field</strong></div>';
+            html += '<div class="d-flex flex-wrap gap-2 mb-3">';
+            fieldNames.forEach(function(field) {
+                var buttonClass = 'btn btn-sm btn-outline-primary';
+                if (activeField === field) {
+                    buttonClass = 'btn btn-sm btn-primary';
+                }
+                html += '<button type="button" class="ocr-field-select ' + buttonClass + '" data-field="' + field + '">' + field.charAt(0).toUpperCase() + field.slice(1) + '</button>';
+            });
+            html += '</div>';
+            html += '<div class="mb-3 text-muted">' + (activeField ? 'Selection mode: click tokens below to tag as <strong>' + activeField.toUpperCase() + '</strong>.' : 'Click a field to enter selection mode.') + '</div>';
+            html += '<div class="d-flex gap-2 mb-3">';
+            html += '<button id="ocrCheckerAssignToken" class="btn btn-sm btn-success">Assign selected text</button>';
+            html += '<button id="ocrCheckerClearTokenSelection" class="btn btn-sm btn-secondary">Clear selection</button>';
+            html += '</div>';
+            html += '<div class="mb-3"><strong>Assigned fields</strong></div>';
+            fieldNames.forEach(function(field) {
+                html += '<div class="mb-1"><strong>' + field.charAt(0).toUpperCase() + field.slice(1) + ':</strong> ' + frappe.utils.escape_html(box.fields[field] || '') + '</div>';
+            });
+            html += '</div>';
+            return html;
+        }
+
+        var dialog = new frappe.ui.Dialog({
+            title: 'Tag combined box text',
+            fields: [
+                { fieldtype: 'HTML', fieldname: 'content' }
+            ]
+        });
+
+        function redraw() {
+            dialog.fields_dict.content.$wrapper.html(renderModalContent());
+            dialog.fields_dict.content.$wrapper.find('.ocr-field-select').on('click', function() {
+                activeField = $(this).attr('data-field');
+                selectedTokenIds.clear();
+                redraw();
+            });
+            dialog.fields_dict.content.$wrapper.find('.ocr-token').on('click', function() {
+                if (!activeField) {
+                    return;
+                }
+                var index = parseInt($(this).attr('data-token-index'), 10);
+                if (selectedTokenIds.has(index)) {
+                    selectedTokenIds.delete(index);
+                } else {
+                    selectedTokenIds.add(index);
+                }
+                redraw();
+            });
+            dialog.fields_dict.content.$wrapper.find('#ocrCheckerAssignToken').on('click', function() {
+                if (!activeField) {
+                    frappe.msgprint('Choose a field before selecting text.');
+                    return;
+                }
+                if (!selectedTokenIds.size) {
+                    frappe.msgprint('Select text tokens before assigning.');
+                    return;
+                }
+                var assignedValue = tokens.filter(function(token, index) {
+                    return selectedTokenIds.has(index);
+                }).map(function(token) {
+                    return token.value;
+                }).join('').trim();
+                var assignedField = activeField;
+                box.fields[assignedField] = assignedValue;
+                if (isCompleteBox(box)) {
+                    box.status = 'complete';
+                }
+                activeField = null;
+                selectedTokenIds.clear();
+                redraw();
+                renderBoxes();
+                setStatus('Tagged text to ' + assignedField + '.', 'text-success');
+            });
+            dialog.fields_dict.content.$wrapper.find('#ocrCheckerClearTokenSelection').on('click', function() {
+                selectedTokenIds.clear();
+                redraw();
+            });
+        }
+
+        dialog.set_primary_action('Done', function() {
+            dialog.hide();
+        });
+
+        redraw();
+        dialog.show();
+    }
+
+    function getBoxEdges(box) {
+        var bb = box.boundingBox;
+        var left = bb.centerPerX - bb.perWidth / 2;
+        var top = bb.centerPerY - bb.perHeight / 2;
+        return {
+            left: left,
+            top: top,
+            right: left + bb.perWidth,
+            bottom: top + bb.perHeight
+        };
+    }
+
+    function unionBoundingBox(boxList) {
+        var edges = boxList.map(getBoxEdges);
+        var left = Math.min.apply(null, edges.map(function(e) { return e.left; }));
+        var top = Math.min.apply(null, edges.map(function(e) { return e.top; }));
+        var right = Math.max.apply(null, edges.map(function(e) { return e.right; }));
+        var bottom = Math.max.apply(null, edges.map(function(e) { return e.bottom; }));
+
+        return {
+            centerPerX: (left + right) / 2,
+            centerPerY: (top + bottom) / 2,
+            perWidth: right - left,
+            perHeight: bottom - top
+        };
+    }
+
+    function sortBoxesForMerge(boxList) {
+        return boxList.slice().sort(function(a, b) {
+            var aEdges = getBoxEdges(a);
+            var bEdges = getBoxEdges(b);
+            if (Math.abs(aEdges.top - bEdges.top) > 0.01) {
+                return aEdges.top - bEdges.top;
+            }
+            return aEdges.left - bEdges.left;
+        });
+    }
+
+    function renderControls() {
+        var selectedCount = selectedBoxIds.size;
+        $selectedCount.text(selectedCount);
+        $mergeBtn.prop('disabled', selectedCount < 2);
+        $clearSelectionBtn.prop('disabled', selectedCount === 0);
+
+        var activeBox = null;
+        if (selectedCount === 1) {
+            var selectedId = Array.from(selectedBoxIds)[0];
+            activeBox = boxes.find(function(box) { return box.id === selectedId; });
+        }
+
+        renderDetails(activeBox);
+    }
+
+    function renderDetails(box) {
+        if (!box) {
+            $detailsCard.addClass('d-none');
+            return;
+        }
+
+        var html = '<h5 class="card-title">Selected box</h5>';
+        html += '<div class="mb-3"><strong>Text</strong><div class="text-break">' + frappe.utils.escape_html(box.text) + '</div></div>';
+        html += '<div class="mb-3"><strong>Status</strong> <span class="badge ' +
+            (box.status === 'complete' ? 'bg-success' : box.status === 'merged' ? 'bg-primary' : 'bg-danger') + '">' +
+            (box.status === 'complete' ? 'Complete' : box.status === 'merged' ? 'Merged' : 'Original') +
+            '</span></div>';
+
+        if (box.status === 'original') {
+            html += '<div class="text-muted">Select two or more boxes and click <strong>Merge selected</strong> or press <strong>Ctrl+M</strong>. Then click the combined box to tag its text.</div>';
+        } else {
+            html += '<div class="text-muted">Click the combined box to open the tagging modal and select the exact text to assign.</div>';
+        }
+
+        $detailsBody.html(html);
+        $detailsCard.removeClass('d-none');
+    }
+
+    function onBoxClick(boxId) {
+        var box = boxes.find(function(item) { return item.id === boxId; });
+        if (!box) {
+            return;
+        }
+
+        if (box.status === 'merged' || box.status === 'complete') {
+            selectedBoxIds.clear();
+            boxes.forEach(function(item) { item.selected = false; });
+            renderBoxes();
+            renderControls();
+            openMergedBoxModal(box);
+            return;
+        }
+
+        box.selected = !box.selected;
+        if (box.selected) {
+            selectedBoxIds.add(box.id);
+        } else {
+            selectedBoxIds.delete(box.id);
+        }
+
+        renderBoxes();
+        renderControls();
+    }
+
+    function mergeSelectedBoxes() {
+        if (selectedBoxIds.size < 2) {
+            return;
+        }
+
+        var selectedBoxes = boxes.filter(function(box) {
+            return selectedBoxIds.has(box.id);
+        });
+
+        if (selectedBoxes.length < 2) {
+            return;
+        }
+
+        selectedBoxes = sortBoxesForMerge(selectedBoxes);
+        var mergedText = selectedBoxes.map(function(box) { return box.text.trim(); }).filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+        var mergedBox = {
+            id: nextBoxId++,
+            text: mergedText,
+            boundingBox: unionBoundingBox(selectedBoxes),
+            status: 'merged',
+            selected: false,
+            mergedIds: selectedBoxes.map(function(box) { return box.id; }),
+            fields: {
+                name: '',
+                village: '',
+                amount: '',
+                phone: ''
+            }
+        };
+
+        boxes = boxes.filter(function(box) {
+            return !selectedBoxIds.has(box.id);
+        });
+
+        boxes.push(mergedBox);
+        selectedBoxIds.clear();
+        renderBoxes();
+        renderControls();
+        setStatus('Merged ' + selectedBoxes.length + ' boxes.', 'text-success');
+    }
+
+    function renderBoxes() {
+        $overlay.empty();
+        var imgEl = $image[0];
+        var naturalWidth = imgEl.naturalWidth;
+        var naturalHeight = imgEl.naturalHeight;
+        if (!naturalWidth || !naturalHeight) {
+            return;
+        }
+
+        var segments = boxes.filter(function(box) {
+            return box && box.boundingBox;
+        });
+
+        $segmentCount.text(segments.length + ' boxes');
+
+        segments.forEach(function(box) {
+            var bb = box.boundingBox;
+            if (
+                bb.centerPerX == null ||
+                bb.centerPerY == null ||
+                bb.perWidth == null ||
+                bb.perHeight == null
+            ) {
+                return;
+            }
+
+            var left = (bb.centerPerX - bb.perWidth / 2) * 100;
+            var top = (bb.centerPerY - bb.perHeight / 2) * 100;
+            var boxWidth = bb.perWidth * 100;
+            var boxHeight = bb.perHeight * 100;
+
+            var $box = $(
+                '<div class="ocr-box" title="' + frappe.utils.escape_html(box.text || '') + '"></div>'
+            );
+            $box.css({
+                left: left + '%',
+                top: top + '%',
+                width: boxWidth + '%',
+                height: boxHeight + '%',
+                pointerEvents: 'auto'
+            });
+
+            $box.addClass(
+                box.status === 'complete' ? 'ocr-box-complete' :
+                box.status === 'merged' ? 'ocr-box-merged' :
+                'ocr-box-original'
+            );
+
+            if (box.selected) {
+                $box.addClass('ocr-box-selected');
+            }
+
+            $box.on('click', function(event) {
+                event.stopPropagation();
+                onBoxClick(box.id);
+            });
+
+            $overlay.append($box);
+        });
     }
 
     function loadFromUrls(imageUrl, jsonUrl) {
@@ -68,7 +478,10 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
 
         setStatus('Loading image and JSON from Pdf page...', 'text-muted');
         $overlay.empty();
-        $segmentCount.text('0 segments');
+        $segmentCount.text('0 boxes');
+        selectedBoxIds.clear();
+        boxes = [];
+        nextBoxId = 0;
 
         fetch(jsonUrl, { credentials: 'include' })
             .then(function(response) {
@@ -78,12 +491,22 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 return response.json();
             })
             .then(function(jsonData) {
+                var segments = Array.isArray(jsonData.segments) ? jsonData.segments : [];
+                segments.forEach(function(segment) {
+                    if (segment && segment.boundingBox) {
+                        boxes.push(createBox(segment, 'original'));
+                    }
+                });
+
+                initStyles();
+
                 $image.off('load.autoLoad error.autoLoad');
                 $image.one('load.autoLoad', function() {
                     $imageWrapper.show();
                     $image.show();
-                    renderBoxes(jsonData);
-                    setStatus('Rendered ' + (Array.isArray(jsonData.segments) ? jsonData.segments.length : 0) + ' boxes.', 'text-success');
+                    renderBoxes();
+                    renderControls();
+                    setStatus('Rendered ' + boxes.length + ' boxes.', 'text-success');
                 });
                 $image.one('error.autoLoad', function() {
                     setStatus('Failed to load image from URL.', 'text-danger');
@@ -107,61 +530,23 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         }
     }
 
-    function renderBoxes(jsonData) {
-        $overlay.empty();
-        var imgEl = $image[0];
-        var naturalWidth = imgEl.naturalWidth;
-        var naturalHeight = imgEl.naturalHeight;
-        if (!naturalWidth || !naturalHeight) {
-            return;
+    $mergeBtn.on('click', mergeSelectedBoxes);
+    $clearSelectionBtn.on('click', function() {
+        selectedBoxIds.clear();
+        boxes.forEach(function(box) {
+            box.selected = false;
+        });
+        renderBoxes();
+        renderControls();
+    });
+
+    $(document).on('keydown.ocrChecker', function(event) {
+        var key = event.key ? event.key.toLowerCase() : '';
+        if ((event.ctrlKey || event.metaKey) && key === 'm') {
+            event.preventDefault();
+            mergeSelectedBoxes();
         }
-
-        var displayedWidth = imgEl.clientWidth;
-        var displayedHeight = imgEl.clientHeight;
-        var scaleX = displayedWidth / naturalWidth;
-        var scaleY = displayedHeight / naturalHeight;
-
-        var segments = Array.isArray(jsonData.segments) ? jsonData.segments : [];
-        segments = segments.filter(function(segment) {
-            return segment && segment.boundingBox;
-        });
-
-        $segmentCount.text(segments.length + ' segments');
-
-        segments.forEach(function(segment) {
-            var bb = segment.boundingBox || {};
-
-            if (
-                bb.centerPerX == null ||
-                bb.centerPerY == null ||
-                bb.perWidth == null ||
-                bb.perHeight == null
-            ) {
-                return;
-            }
-
-            var left = (bb.centerPerX - bb.perWidth / 2) * 100;
-            var top = (bb.centerPerY - bb.perHeight / 2) * 100;
-            var boxWidth = bb.perWidth * 100;
-            var boxHeight = bb.perHeight * 100;
-
-            var $box = $(
-                '<div class="ocr-box" title="' + frappe.utils.escape_html(segment.text || '') + '"></div>'
-            );
-            $box.css({
-                position: 'absolute',
-                left: left + '%',
-                top: top + '%',
-                width: boxWidth + '%',
-                height: boxHeight + '%',
-                border: '2px solid rgba(255, 0, 0, 0.75)',
-                background: 'rgba(255, 0, 0, 0.10)',
-                boxSizing: 'border-box',
-                pointerEvents: 'auto'
-            });
-            $overlay.append($box);
-        });
-    }
+    });
 
     clearPreview();
     loadFromQuery();
