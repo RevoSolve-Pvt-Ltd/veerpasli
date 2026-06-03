@@ -22,9 +22,14 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                             <div id="ocrCheckerControls" class="d-flex flex-column flex-md-row align-items-start gap-2 mb-3">
                                 <div class="d-flex flex-wrap gap-2">
                                     <button id="mergeBoxesBtn" class="btn btn-primary btn-sm" disabled>Merge selected</button>
+                                    <button id="deleteBoxBtn" class="btn btn-danger btn-sm" disabled>Delete selected</button>
                                     <button id="clearSelectionBtn" class="btn btn-secondary btn-sm" type="button">Clear selection</button>
                                 </div>
                                 <div class="ms-md-auto text-muted small">Selected: <span id="ocrCheckerSelectedCount">0</span></div>
+                            </div>
+
+                            <div id="ocrCheckerProcessContainer" class="d-none mb-3">
+                                <button id="processPageBtn" class="btn btn-success">Process Page</button>
                             </div>
 
                             <div id="ocrCheckerFrame" class="d-flex justify-content-center bg-light border" style="min-height: 620px; position: relative;">
@@ -54,14 +59,18 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
     var $imageWrapper = $content.find('#ocrCheckerImageWrapper');
     var $overlay = $content.find('#ocrCheckerOverlay');
     var $mergeBtn = $content.find('#mergeBoxesBtn');
+    var $deleteBtn = $content.find('#deleteBoxBtn');
     var $clearSelectionBtn = $content.find('#clearSelectionBtn');
     var $selectedCount = $content.find('#ocrCheckerSelectedCount');
     var $detailsCard = $content.find('#ocrCheckerDetails');
     var $detailsBody = $detailsCard.find('.card-body');
+    var $processContainer = $content.find('#ocrCheckerProcessContainer');
+    var $processBtn = $content.find('#processPageBtn');
 
     var boxes = [];
     var nextBoxId = 0;
     var selectedBoxIds = new Set();
+    var currentImageUrl = null;
 
     function setStatus(message, type) {
         $status.removeClass('text-success text-danger text-muted');
@@ -71,6 +80,83 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
 
     function getQueryParam(name) {
         return new URLSearchParams(window.location.search).get(name);
+    }
+
+    function parseLocationFromImageUrl(imageUrl) {
+        if (!imageUrl) {
+            return null;
+        }
+
+        var url = imageUrl;
+        try {
+            url = new URL(imageUrl, window.location.origin).pathname;
+        } catch (e) {
+            url = imageUrl.split('?')[0];
+        }
+
+        var filename = url.split('/').pop().split('?')[0];
+        filename = filename.replace(/\.[^/.]+$/, '');
+        var match = filename.match(/^veerpasli-(.+)-\d{4}-\d+$/i);
+        return match ? match[1] : filename;
+    }
+
+    function getCompleteBoxesPayload() {
+        return boxes.filter(isCompleteBox).map(function(box) {
+            return {
+                fields: box.fields
+            };
+        });
+    }
+
+    function processPage() {
+        var imageUrl = currentImageUrl || getQueryParam('image');
+        if (!imageUrl) {
+            setStatus('Cannot determine image filename for location parsing.', 'text-danger');
+            return;
+        }
+
+        var taskLocation = parseLocationFromImageUrl(imageUrl);
+        if (!taskLocation) {
+            setStatus('Unable to parse location from image filename.', 'text-danger');
+            return;
+        }
+
+        var payload = getCompleteBoxesPayload();
+        if (!payload.length) {
+            setStatus('No complete boxes available to process.', 'text-danger');
+            return;
+        }
+
+        $processBtn.prop('disabled', true);
+        setStatus('Processing page entries, please wait...', 'text-muted');
+
+        var call = frappe.call({
+            method: 'veerpasli.veerpasli.doctype.pdf_page.pdf_page.process_ocr_page',
+            args: {
+                image_url: imageUrl,
+                boxes: JSON.stringify(payload)
+            },
+            callback: function(r) {
+                if (r.exc) {
+                    setStatus('Unable to process page: ' + (r.exc && r.exc.message ? r.exc.message : r.message), 'text-danger');
+                } else {
+                    var data = r.message || {};
+                    var msg = 'Processed page successfully.';
+                    if (typeof data.donation_count !== 'undefined') {
+                        msg = 'Created ' + data.donation_count + ' donations and ' + data.collector_count + ' collectors.';
+                    }
+                    setStatus(msg, 'text-success');
+                }
+            }
+        });
+
+        if (call && typeof call.always === 'function') {
+            call.always(function() {
+                $processBtn.prop('disabled', false);
+            });
+        } else {
+            $processBtn.prop('disabled', false);
+        }
     }
 
     function initStyles() {
@@ -353,6 +439,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 selectedTokenIds.clear();
                 redraw();
                 renderBoxes();
+                renderControls();
                 setStatus('Tagged text to ' + assignedField + '.', 'text-success');
             });
             dialog.fields_dict.content.$wrapper.find('#ocrCheckerClearTokenSelection').on('click', function() {
@@ -483,18 +570,37 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         });
     }
 
+    function allBoxesComplete() {
+        return boxes.length > 0 && boxes.every(function(box) {
+            return box.status === 'complete';
+        });
+    }
+
+    function deleteSelectedBoxes() {
+        if (selectedBoxIds.size === 0) {
+            return;
+        }
+        boxes = boxes.filter(function(box) {
+            return !selectedBoxIds.has(box.id);
+        });
+        selectedBoxIds.clear();
+        renderBoxes();
+        renderControls();
+        setStatus('Deleted selected box(es).', 'text-success');
+    }
+
     function renderControls() {
         var selectedCount = selectedBoxIds.size;
         $selectedCount.text(selectedCount);
         $mergeBtn.prop('disabled', selectedCount < 2);
+        $deleteBtn.prop('disabled', selectedCount === 0);
         $clearSelectionBtn.prop('disabled', selectedCount === 0);
 
-        var activeBox = null;
-        if (selectedCount === 1) {
-            var selectedId = Array.from(selectedBoxIds)[0];
-            activeBox = boxes.find(function(box) { return box.id === selectedId; });
+        if (allBoxesComplete()) {
+            $processContainer.removeClass('d-none');
+        } else {
+            $processContainer.addClass('d-none');
         }
-
     }
 
 
@@ -666,6 +772,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
 
                 $image.off('load.autoLoad error.autoLoad');
                 $image.one('load.autoLoad', function() {
+                    currentImageUrl = imageUrl;
                     $imageWrapper.show();
                     $image.show();
                     renderBoxes();
@@ -695,6 +802,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
     }
 
     $mergeBtn.on('click', mergeSelectedBoxes);
+    $deleteBtn.on('click', deleteSelectedBoxes);
     $clearSelectionBtn.on('click', function() {
         selectedBoxIds.clear();
         boxes.forEach(function(box) {
@@ -703,6 +811,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         renderBoxes();
         renderControls();
     });
+    $processBtn.on('click', processPage);
 
     $(document).on('keydown.ocrChecker', function(event) {
         var key = event.key ? event.key.toLowerCase() : '';
