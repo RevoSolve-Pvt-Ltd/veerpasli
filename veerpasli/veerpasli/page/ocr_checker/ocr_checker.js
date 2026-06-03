@@ -81,6 +81,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 $image.off('load.autoLoad error.autoLoad');
                 $image.one('load.autoLoad', function() {
                     $imageWrapper.show();
+                    $image.show();
                     renderBoxes(jsonData);
                     setStatus('Rendered ' + (Array.isArray(jsonData.segments) ? jsonData.segments.length : 0) + ' boxes.', 'text-success');
                 });
