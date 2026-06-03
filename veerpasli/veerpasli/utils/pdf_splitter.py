@@ -1,7 +1,7 @@
 import frappe
 import io
 import re
-import fitz  # PyMuPDF
+import pymupdf as fitz  # PyMuPDF
 
 @frappe.whitelist()
 def split_pdf_and_create_records(file_content, file_name):
