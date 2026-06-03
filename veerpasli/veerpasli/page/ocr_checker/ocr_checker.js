@@ -87,9 +87,28 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             .ocr-box-complete { border: 2px solid rgba(40, 167, 69, 0.85); background: rgba(40, 167, 69, 0.10); }
             .ocr-box-selected { outline: 3px solid rgba(255, 193, 7, 0.85); outline-offset: -3px; }
             .ocr-box:hover { filter: saturate(1.2); }
+                .ocr-box-split-icon {
+                    position: absolute;
+                    top: -16px;
+                    right: 4px;
+                    width: 28px;
+                    height: 28px;
+                    border: none;
+                    border-radius: 4px;
+                    background: rgba(255,255,255,0.92);
+                    color: #dc3545;
+                    font-size: 16px;
+                    line-height: 1;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+                    z-index: 20;
+                }
             .ocr-checker-field { margin-bottom: 1rem; }
             .ocr-token { display: inline-block; padding: 0.12rem 0.25rem; margin: 0 0.1rem 0.1rem 0; border-radius: 3px; transition: background-color 0.2s ease, color 0.2s ease; cursor: pointer; }
-            .ocr-token-selected { color: #fff; border: 1px solid transparent; }
+            .ocr-token-selected { background: rgba(0, 0, 0, 0.65); color: #fff; border: 1px solid transparent; padding: 0.08rem 0.18rem; border-radius: 3px; }
             .ocr-token-name.ocr-token-selected { background-color: #0d6efd; }
             .ocr-token-village.ocr-token-selected { background-color: #6610f2; }
             .ocr-token-amount.ocr-token-selected { background-color: #fd7e14; }
@@ -147,6 +166,90 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         return tokens;
     }
 
+    function splitBoxByTokenSelection(box, tokens, selectedTokenIds) {
+        var selectedIndexes = Array.from(selectedTokenIds).sort(function(a, b) { return a - b; });
+        if (!selectedIndexes.length) {
+            return null;
+        }
+        for (var i = 1; i < selectedIndexes.length; i++) {
+            if (selectedIndexes[i] !== selectedIndexes[i - 1] + 1) {
+                return null;
+            }
+        }
+
+        var selectedText = selectedIndexes.map(function(index) {
+            return tokens[index].value;
+        }).join('').trim();
+        var remainingTokens = tokens.filter(function(token, index) {
+            return !selectedTokenIds.has(index);
+        });
+        var remainingText = remainingTokens.map(function(token) {
+            return token.value;
+        }).join('').trim();
+
+        if (!selectedText || !remainingText) {
+            return null;
+        }
+
+        var totalLength = tokens.reduce(function(sum, token) {
+            return sum + token.value.length;
+        }, 0);
+        var selectedLength = selectedIndexes.reduce(function(sum, index) {
+            return sum + tokens[index].value.length;
+        }, 0);
+
+        var bb = box.boundingBox;
+        var left = bb.centerPerX - bb.perWidth / 2;
+        var selectedWidth = bb.perWidth * (selectedLength / totalLength);
+        var remainingWidth = bb.perWidth - selectedWidth;
+        var splitOnLeft = selectedIndexes[0] / tokens.length < 0.5;
+
+        var boxA = {
+            id: nextBoxId++,
+            text: splitOnLeft ? selectedText : remainingText,
+            boundingBox: {
+                centerPerX: left + (splitOnLeft ? selectedWidth / 2 : remainingWidth / 2),
+                centerPerY: bb.centerPerY,
+                perWidth: splitOnLeft ? selectedWidth : remainingWidth,
+                perHeight: bb.perHeight
+            },
+            status: box.status,
+            selected: false,
+            mergedIds: box.mergedIds.slice(),
+            fields: {
+                name: '',
+                village: '',
+                amount: '',
+                phone: ''
+            }
+        };
+
+        var boxB = {
+            id: nextBoxId++,
+            text: splitOnLeft ? remainingText : selectedText,
+            boundingBox: {
+                centerPerX: left + (splitOnLeft ? selectedWidth + remainingWidth / 2 : remainingWidth + selectedWidth / 2),
+                centerPerY: bb.centerPerY,
+                perWidth: splitOnLeft ? remainingWidth : selectedWidth,
+                perHeight: bb.perHeight
+            },
+            status: box.status,
+            selected: false,
+            mergedIds: box.mergedIds.slice(),
+            fields: {
+                name: '',
+                village: '',
+                amount: '',
+                phone: ''
+            }
+        };
+
+        if (splitOnLeft) {
+            return { left: boxA, right: boxB };
+        }
+        return { left: boxB, right: boxA };
+    }
+
     function renderFieldLabels(box, $box) {
         fieldNames.forEach(function(field, index) {
             if (box.fields[field]) {
@@ -158,7 +261,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         });
     }
 
-    function openMergedBoxModal(box) {
+    function openBoxEditorModal(box) {
         var tokens = tokenizeText(box.text || '');
         var activeField = null;
         var selectedTokenIds = new Set();
@@ -266,6 +369,82 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         dialog.show();
     }
 
+    function openSplitModal(box) {
+        var tokens = tokenizeText(box.text || '');
+        var selectedTokenIds = new Set();
+
+        function renderModalContent() {
+            var html = '<div class="ocr-checker-modal">';
+            html += '<div class="mb-3"><strong>Split box text</strong></div>';
+            html += '<div class="ocr-token-container mb-3" style="padding: 0.75rem; border: 1px solid #dee2e6; border-radius: 4px; background: #fff; max-height: 260px; overflow-y: auto;">';
+            tokens.forEach(function(token, index) {
+                var cssClass = 'ocr-token';
+                if (selectedTokenIds.has(index)) {
+                    cssClass += ' ocr-token-selected';
+                }
+                html += '<span class="' + cssClass + '" data-token-index="' + index + '">' + frappe.utils.escape_html(token.value) + '</span>';
+            });
+            html += '</div>';
+            html += '<div class="mb-3 text-muted">Select the exact text you want to split into a new box, then click <strong>Split selected text</strong>.</div>';
+            html += '<div class="d-flex gap-2 mb-3">';
+            html += '<button id="ocrCheckerSplitOnly" class="btn btn-sm btn-warning">Split selected text</button>';
+            html += '<button id="ocrCheckerClearTokenSelection" class="btn btn-sm btn-secondary">Clear selection</button>';
+            html += '</div>';
+            html += '</div>';
+            return html;
+        }
+
+        var dialog = new frappe.ui.Dialog({
+            title: 'Split box text',
+            fields: [
+                { fieldtype: 'HTML', fieldname: 'content' }
+            ]
+        });
+
+        function redraw() {
+            dialog.fields_dict.content.$wrapper.html(renderModalContent());
+            dialog.fields_dict.content.$wrapper.find('.ocr-token').on('click', function() {
+                var index = parseInt($(this).attr('data-token-index'), 10);
+                if (selectedTokenIds.has(index)) {
+                    selectedTokenIds.delete(index);
+                } else {
+                    selectedTokenIds.add(index);
+                }
+                redraw();
+            });
+            dialog.fields_dict.content.$wrapper.find('#ocrCheckerSplitOnly').on('click', function() {
+                if (!selectedTokenIds.size) {
+                    frappe.msgprint('Select tokens before splitting the box.');
+                    return;
+                }
+                var splitBoxes = splitBoxByTokenSelection(box, tokens, selectedTokenIds);
+                if (!splitBoxes) {
+                    frappe.msgprint('Cannot split this selection into two boxes. Choose a contiguous range of tokens and try again.');
+                    return;
+                }
+                box.text = splitBoxes.left.text;
+                box.boundingBox = splitBoxes.left.boundingBox;
+                boxes.push(splitBoxes.right);
+                selectedTokenIds.clear();
+                renderBoxes();
+                renderControls();
+                setStatus('Split the box into two boxes.', 'text-success');
+                dialog.hide();
+            });
+            dialog.fields_dict.content.$wrapper.find('#ocrCheckerClearTokenSelection').on('click', function() {
+                selectedTokenIds.clear();
+                redraw();
+            });
+        }
+
+        dialog.set_primary_action('Done', function() {
+            dialog.hide();
+        });
+
+        redraw();
+        dialog.show();
+    }
+
     function getBoxEdges(box) {
         var bb = box.boundingBox;
         var left = bb.centerPerX - bb.perWidth / 2;
@@ -316,31 +495,8 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             activeBox = boxes.find(function(box) { return box.id === selectedId; });
         }
 
-        renderDetails(activeBox);
     }
 
-    function renderDetails(box) {
-        if (!box) {
-            $detailsCard.addClass('d-none');
-            return;
-        }
-
-        var html = '<h5 class="card-title">Selected box</h5>';
-        html += '<div class="mb-3"><strong>Text</strong><div class="text-break">' + frappe.utils.escape_html(box.text) + '</div></div>';
-        html += '<div class="mb-3"><strong>Status</strong> <span class="badge ' +
-            (box.status === 'complete' ? 'bg-success' : box.status === 'merged' ? 'bg-primary' : 'bg-danger') + '">' +
-            (box.status === 'complete' ? 'Complete' : box.status === 'merged' ? 'Merged' : 'Original') +
-            '</span></div>';
-
-        if (box.status === 'original') {
-            html += '<div class="text-muted">Select two or more boxes and click <strong>Merge selected</strong> or press <strong>Ctrl+M</strong>. Then click the combined box to tag its text.</div>';
-        } else {
-            html += '<div class="text-muted">Click the combined box to open the tagging modal and select the exact text to assign.</div>';
-        }
-
-        $detailsBody.html(html);
-        $detailsCard.removeClass('d-none');
-    }
 
     function onBoxClick(boxId) {
         var box = boxes.find(function(item) { return item.id === boxId; });
@@ -353,7 +509,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             boxes.forEach(function(item) { item.selected = false; });
             renderBoxes();
             renderControls();
-            openMergedBoxModal(box);
+            openBoxEditorModal(box);
             return;
         }
 
@@ -459,6 +615,14 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
 
             if (box.selected) {
                 $box.addClass('ocr-box-selected');
+                var $splitIcon = $(
+                    '<button class="ocr-box-split-icon" type="button" title="Split box">✂</button>'
+                );
+                $splitIcon.on('click', function(event) {
+                    event.stopPropagation();
+                    openSplitModal(box);
+                });
+                $box.append($splitIcon);
             }
 
             $box.on('click', function(event) {
