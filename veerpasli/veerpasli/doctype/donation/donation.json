@@ -26,8 +26,7 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Haste",
-   "options": "Person",
-   "reqd": 1
+   "options": "Person"
   },
   {
    "fieldname": "takti",
@@ -42,15 +41,14 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Amount Gujarati",
-   "non_negative": 1
+   "non_negative": 1,
+   "reqd": 1
   },
   {
    "fieldname": "amount_english",
    "fieldtype": "Int",
    "in_list_view": 1,
-   "label": "Amount English",
-   "non_negative": 1,
-   "reqd": 1
+   "label": "Amount English"
   },
   {
    "fieldname": "donor_information_section",
@@ -112,7 +110,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-02 18:28:19.254131",
+ "modified": "2026-06-03 17:28:35.241033",
  "modified_by": "Administrator",
  "module": "Veerpasli",
  "name": "Donation",
@@ -136,5 +134,5 @@
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "title_field": "haste"
+ "title_field": "takti"
 }

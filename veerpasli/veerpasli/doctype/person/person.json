@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "field:gujarati_fullname",
  "creation": "2026-06-02 10:47:44.878769",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -23,14 +24,14 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Gujarati Fullname",
-   "reqd": 1
+   "reqd": 1,
+   "unique": 1
   },
   {
    "fieldname": "english_fullname",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "English Fullname",
-   "reqd": 1
+   "label": "English Fullname"
   },
   {
    "fetch_from": "village_gujarati_name.english_name",
@@ -38,7 +39,7 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Village English Name",
-   "reqd": 1
+   "read_only": 1
   },
   {
    "fieldname": "village_gujarati_name",
@@ -51,8 +52,7 @@
   {
    "fieldname": "mobile_number",
    "fieldtype": "Phone",
-   "label": "Mobile Number",
-   "reqd": 1
+   "label": "Mobile Number"
   },
   {
    "default": "false",
@@ -95,10 +95,11 @@
    "link_fieldname": "haste"
   }
  ],
- "modified": "2026-06-02 16:46:52.190862",
+ "modified": "2026-06-03 18:10:20.289177",
  "modified_by": "Administrator",
  "module": "Veerpasli",
  "name": "Person",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {
