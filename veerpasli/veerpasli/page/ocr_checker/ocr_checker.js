@@ -94,7 +94,11 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
 
         var filename = url.split('/').pop().split('?')[0];
         filename = filename.replace(/\.[^/.]+$/, '');
-        var match = filename.match(/^veerpasli-(.+)-\d{4}-\d+$/i);
+        var match = filename.match(/^veerpasli_(.+)_(\d{4})[-_](\d+)$/i);
+        if (match) {
+            return match[1];
+        }
+        match = filename.match(/^veerpasli-(.+)-\d{4}-\d+$/i);
         return match ? match[1] : filename;
     }
 

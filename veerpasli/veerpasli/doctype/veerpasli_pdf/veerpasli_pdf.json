@@ -1,0 +1,67 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-06-03 20:22:14.447604",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "document_pdf",
+  "location",
+  "year",
+  "page_number_range"
+ ],
+ "fields": [
+  {
+   "fieldname": "document_pdf",
+   "fieldtype": "Attach",
+   "in_list_view": 1,
+   "label": "Document PDF",
+   "reqd": 1
+  },
+  {
+   "fieldname": "location",
+   "fieldtype": "Data",
+   "label": "Location",
+   "reqd": 1
+  },
+  {
+   "fieldname": "year",
+   "fieldtype": "Int",
+   "label": "Year",
+   "reqd": 1
+  },
+  {
+   "fieldname": "page_number_range",
+   "fieldtype": "Data",
+   "label": "Page Number Range",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-03 22:05:14.545557",
+ "modified_by": "Administrator",
+ "module": "Veerpasli",
+ "name": "Veerpasli PDF",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

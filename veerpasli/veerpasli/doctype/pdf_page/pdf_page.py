@@ -337,6 +337,9 @@ def extract_location_from_image_url(image_url):
 	path = unquote(parsed.path or image_url)
 	filename = os.path.basename(path)
 	filename = os.path.splitext(filename)[0]
+	match = re.match(r'^veerpasli_(.+)_(\d{4})[-_](\d+)$', filename, re.IGNORECASE)
+	if match:
+		return match.group(1)
 	match = re.match(r'^veerpasli-(.+)-\d{4}-\d+$', filename, re.IGNORECASE)
 	return match.group(1) if match else filename
 
