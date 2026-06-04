@@ -69,6 +69,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
     var currentImageUrl = null;
     var currentJsonUrl = null;
     var jsonData = null;
+    var pageId = null;
 
     function setStatus(message, type) {
         $status.removeClass('text-success text-danger text-muted');
@@ -166,14 +167,14 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             id: nextBoxId++,
             text: segment.text || '',
             boundingBox: segment.boundingBox || null,
-            status: status || 'original',
+            status: segment.status || status || 'original',
             selected: false,
             mergedIds: [],
             sourceSegments: [{
                 text: segment.text,
                 boundingBox: segment.boundingBox
             }],
-            fields: {
+            fields: segment.fields || {
                 name: '',
                 village: '',
                 amount: '',
@@ -698,19 +699,24 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
     }
 
     function persistJsonData() {
-        if (!currentJsonUrl || !jsonData) {
+        if (!pageId && currentImageUrl) {
+            var filename = currentImageUrl.split('/').pop().split('?')[0];
+            pageId = filename.replace(/\.[^/.]+$/, '');
+        }
+        if (!pageId) {
+            console.error('Cannot persist: Page ID is missing.');
             return;
         }
 
         frappe.call({
-            method: 'veerpasli.veerpasli.doctype.pdf_page.pdf_page.save_json_file',
+            method: 'veerpasli.veerpasli.doctype.pdf_page.pdf_page.update_ocr_boxes',
             args: {
-                json_url: currentJsonUrl,
-                json_data: JSON.stringify(jsonData)
+                page_id: pageId,
+                boxes: JSON.stringify(boxes)
             },
             callback: function(r) {
                 if (r.exc) {
-                    console.error('Failed to save JSON file:', r.exc);
+                    console.error('Failed to update OCR boxes:', r.exc);
                 }
             }
         });
@@ -721,21 +727,16 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             return;
         }
 
-        var removedFromJson = false;
         boxes = boxes.filter(function(box) {
             if (selectedBoxIds.has(box.id)) {
-                if (removeSegmentForBox(box)) {
-                    removedFromJson = true;
-                }
+                removeSegmentForBox(box);
                 return false;
             }
             return true;
         });
 
         selectedBoxIds.clear();
-        if (removedFromJson) {
-            persistJsonData();
-        }
+        persistJsonData();
         renderBoxes();
         renderControls();
         setStatus('Deleted selected box(es).', 'text-success');
@@ -842,6 +843,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
 
         boxes.push(mergedBox);
         selectedBoxIds.clear();
+        persistJsonData();
         renderBoxes();
         renderControls();
         setStatus('Merged ' + selectedBoxes.length + ' boxes.', 'text-success');
@@ -918,26 +920,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
     }
 
     function saveVerifiedBoxToJson(box) {
-        if (!jsonData || !currentJsonUrl) {
-            return;
-        }
-
-        if (!Array.isArray(jsonData.verified)) {
-            jsonData.verified = [];
-        }
-
-        removeSegmentForBox(box);
-
-        var verifiedBox = {
-            id: box.id,
-            text: box.text,
-            boundingBox: box.boundingBox,
-            fields: box.fields,
-            sourceSegments: box.sourceSegments || [],
-            timestamp: new Date().toISOString()
-        };
-
-        jsonData.verified.push(verifiedBox);
+        box.status = 'verified';
         persistJsonData();
     }
 
@@ -956,14 +939,21 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         currentImageUrl = imageUrl;
         currentJsonUrl = jsonUrl;
 
-        fetch(jsonUrl, { credentials: 'include' })
-            .then(function(response) {
-                if (!response.ok) {
-                    throw new Error('Failed to fetch JSON: ' + response.status);
+        var filename = imageUrl.split('/').pop().split('?')[0];
+        filename = filename.replace(/\.[^/.]+$/, '');
+        pageId = getQueryParam('page_id') || filename;
+
+        frappe.call({
+            method: 'veerpasli.veerpasli.doctype.pdf_page.pdf_page.get_ocr_boxes',
+            args: {
+                page_id: pageId
+            },
+            callback: function(r) {
+                if (r.exc) {
+                    setStatus('Failed to load OCR boxes: ' + (r.exc.message || r.message), 'text-danger');
+                    return;
                 }
-                return response.json();
-            })
-            .then(function(data) {
+                var data = r.message || { segments: [], verified: [] };
                 jsonData = data;
                 var segments = Array.isArray(data.segments) ? data.segments : [];
                 var verified = Array.isArray(data.verified) ? data.verified : [];
@@ -1009,11 +999,8 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                     setStatus('Failed to load image from URL.', 'text-danger');
                 });
                 $image.attr('src', imageUrl);
-            })
-            .catch(function(error) {
-                console.error(error);
-                setStatus(error.message || 'Failed to load URL files. Check the browser console.', 'text-danger');
-            });
+            }
+        });
     }
 
     function loadFromQuery() {

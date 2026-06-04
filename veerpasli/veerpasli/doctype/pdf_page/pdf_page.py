@@ -70,9 +70,33 @@ def process_image(docname):
 					df="json_file"
 				)
 				file_doc = out if hasattr(out, "doctype") else frappe.get_doc('File', out)
-				doc.db_set('json_file', file_doc.file_url)
-
-			doc.db_set("status", "completed")
+				
+				# Populate ocr_boxes child table from OCR segments
+				import json
+				try:
+					data = json.loads(file_content)
+					segments = data.get("segments", [])
+					
+					# Clear existing boxes
+					doc.ocr_boxes = []
+					for segment in segments:
+						bb = segment.get("boundingBox") or {}
+						doc.append("ocr_boxes", {
+							"text": segment.get("text"),
+							"center_x": bb.get("centerPerX"),
+							"center_y": bb.get("centerPerY"),
+							"width": bb.get("perWidth"),
+							"height": bb.get("perHeight"),
+							"status": "original"
+						})
+				except Exception as e:
+					frappe.log_error(f"Error parsing OCR segments for {doc.name}: {str(e)}")
+				
+				doc.json_file = file_doc.file_url
+				doc.status = "completed"
+				doc.save(ignore_permissions=True)
+			else:
+				doc.db_set("status", "completed")
 		else:
 			doc.db_set("status", "failed")
 	except Exception:
@@ -282,32 +306,6 @@ def process_ocr_box(image_url, box):
 
 
 @frappe.whitelist()
-def save_json_file(json_url, json_data):
-	if not json_url:
-		frappe.throw("JSON URL is required.")
-
-	if isinstance(json_data, str):
-		json_data = frappe.parse_json(json_data)
-
-	if not isinstance(json_data, dict):
-		frappe.throw("Invalid JSON payload.")
-
-	json_disk_path = frappe.get_site_path(json_url.lstrip('/'))
-	if not os.path.exists(json_disk_path):
-		frappe.throw(f"JSON file not found at {json_disk_path}")
-
-	try:
-		with open(json_disk_path, 'w', encoding='utf-8') as f:
-			f.write(frappe.as_json(json_data, indent=2))
-	except Exception as e:
-		frappe.throw(f"Failed to save JSON file: {str(e)}")
-
-	return {
-		'success': True
-	}
-
-
-@frappe.whitelist()
 def mark_pdf_page_verified(json_url=None, image_url=None):
 	filters = {}
 	if json_url:
@@ -330,6 +328,121 @@ def mark_pdf_page_verified(json_url=None, image_url=None):
 		'success': True,
 		'page': doc.name
 	}
+
+
+@frappe.whitelist()
+def get_ocr_boxes(page_id):
+	import json
+	doc = frappe.get_doc("Pdf page", page_id)
+	if not doc.ocr_boxes and doc.json_file:
+		# Populate child table from JSON file (one-time migration)
+		json_path = frappe.get_site_path(doc.json_file.lstrip('/'))
+		if os.path.exists(json_path):
+			try:
+				with open(json_path, 'r', encoding='utf-8') as f:
+					data = json.loads(f.read())
+				segments = data.get("segments", [])
+				verified = data.get("verified", [])
+				
+				for box in verified:
+					bb = box.get("boundingBox", {})
+					fields = box.get("fields", {})
+					doc.append("ocr_boxes", {
+						"text": box.get("text"),
+						"center_x": bb.get("centerPerX"),
+						"center_y": bb.get("centerPerY"),
+						"width": bb.get("perWidth"),
+						"height": bb.get("perHeight"),
+						"person_name": fields.get("name"),
+						"village": fields.get("village"),
+						"amount": fields.get("amount"),
+						"phone": fields.get("phone"),
+						"entry_type": fields.get("entryType") or fields.get("entry_type"),
+						"status": "verified"
+					})
+				
+				verified_keys = {
+					(v.get("text"), v.get("boundingBox", {}).get("centerPerX"), v.get("boundingBox", {}).get("centerPerY"))
+					for v in verified if v and v.get("boundingBox")
+				}
+				
+				for segment in segments:
+					bb = segment.get("boundingBox", {})
+					key = (segment.get("text"), bb.get("centerPerX"), bb.get("centerPerY"))
+					if key not in verified_keys:
+						doc.append("ocr_boxes", {
+							"text": segment.get("text"),
+							"center_x": bb.get("centerPerX"),
+							"center_y": bb.get("centerPerY"),
+							"width": bb.get("perWidth"),
+							"height": bb.get("perHeight"),
+							"status": "original"
+						})
+				doc.save(ignore_permissions=True)
+				frappe.db.commit()
+			except Exception as e:
+				frappe.log_error(f"Error migrating JSON to child table for {page_id}: {str(e)}")
+	
+	# Convert child table to the format expected by ocr_checker.js
+	segments = []
+	verified = []
+	for row in doc.ocr_boxes:
+		box_dict = {
+			"text": row.text,
+			"status": row.status,
+			"boundingBox": {
+				"centerPerX": row.center_x,
+				"centerPerY": row.center_y,
+				"perWidth": row.width,
+				"perHeight": row.height
+			}
+		}
+		if row.status == "verified":
+			box_dict["fields"] = {
+				"name": row.person_name,
+				"village": row.village,
+				"amount": row.amount,
+				"phone": row.phone,
+				"entryType": row.entry_type
+			}
+			verified.append(box_dict)
+		else:
+			segments.append(box_dict)
+		
+	return {
+		"segments": segments,
+		"verified": verified
+	}
+
+
+@frappe.whitelist()
+def update_ocr_boxes(page_id, boxes):
+	if isinstance(boxes, str):
+		boxes = frappe.parse_json(boxes)
+	
+	doc = frappe.get_doc("Pdf page", page_id)
+	doc.ocr_boxes = []
+	
+	for box in boxes:
+		bb = box.get("boundingBox") or {}
+		fields = box.get("fields") or {}
+		doc.append("ocr_boxes", {
+			"text": box.get("text"),
+			"center_x": bb.get("centerPerX"),
+			"center_y": bb.get("centerPerY"),
+			"width": bb.get("perWidth"),
+			"height": bb.get("perHeight"),
+			"person_name": fields.get("name"),
+			"village": fields.get("village"),
+			"amount": fields.get("amount"),
+			"phone": fields.get("phone"),
+			"entry_type": fields.get("entryType") or fields.get("entry_type"),
+			"status": box.get("status") or "original"
+		})
+		
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+	return {"success": True}
 
 
 def extract_location_from_image_url(image_url):

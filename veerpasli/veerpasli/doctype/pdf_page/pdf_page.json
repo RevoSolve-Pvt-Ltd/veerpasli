@@ -10,7 +10,8 @@
   "json_file",
   "page_number",
   "status",
-  "year"
+  "year",
+  "ocr_boxes"
  ],
  "fields": [
   {
@@ -45,6 +46,12 @@
    "fieldname": "json_file",
    "fieldtype": "Attach",
    "label": "JSON file"
+  },
+  {
+   "fieldname": "ocr_boxes",
+   "fieldtype": "Table",
+   "label": "OCR Boxes",
+   "options": "OCR Box"
   }
  ],
  "grid_page_length": 50,
