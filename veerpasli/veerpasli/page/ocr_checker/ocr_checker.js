@@ -1013,24 +1013,19 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         persistJsonData();
     }
 
-    function loadFromUrls(imageUrl, jsonUrl) {
-        if (!imageUrl || !jsonUrl) {
+    function loadFromPageId(incomingPageId) {
+        if (!incomingPageId) {
             clearPreview();
             return;
         }
 
-        setStatus('Loading image and JSON from Pdf page...', 'text-muted');
+        setStatus('Loading data from Pdf page...', 'text-muted');
         $overlay.empty();
         $segmentCount.text('0 boxes');
         selectedBoxIds.clear();
         boxes = [];
         nextBoxId = 0;
-        currentImageUrl = imageUrl;
-        currentJsonUrl = jsonUrl;
-
-        var filename = imageUrl.split('/').pop().split('?')[0];
-        filename = filename.replace(/\.[^/.]+$/, '');
-        pageId = getQueryParam('page_id') || filename;
+        pageId = incomingPageId;
 
         frappe.call({
             method: 'veerpasli.veerpasli.doctype.pdf_page.pdf_page.get_ocr_boxes',
@@ -1046,6 +1041,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 jsonData = data;
                 var segments = Array.isArray(data.segments) ? data.segments : [];
                 var verified = Array.isArray(data.verified) ? data.verified : [];
+                currentImageUrl = data.image_url;
 
                 verified.forEach(function(verifiedBox) {
                     if (verifiedBox && verifiedBox.boundingBox) {
@@ -1088,17 +1084,33 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 $image.one('error.autoLoad', function() {
                     setStatus('Failed to load image from URL.', 'text-danger');
                 });
-                $image.attr('src', imageUrl);
+                if (currentImageUrl) {
+                    $image.attr('src', currentImageUrl);
+                } else {
+                    setStatus('No image URL found for this page.', 'text-danger');
+                }
             }
         });
     }
 
     function loadFromQuery() {
-        var imageUrl = getQueryParam('image');
-        var jsonUrl = getQueryParam('json');
+        var pid = null;
+        var route = frappe.get_route();
+        
+        if (frappe.route_options && frappe.route_options.page_id) {
+            pid = frappe.route_options.page_id;
+            frappe.route_options = null;
+        } else if (getQueryParam('page_id')) {
+            pid = getQueryParam('page_id');
+        } else if (route && route[0] === 'ocr-checker' && route[1]) {
+            // Support URL format: /app/ocr-checker/वीरपसली_2025_90
+            pid = decodeURIComponent(route[1]);
+        }
 
-        if (imageUrl && jsonUrl) {
-            loadFromUrls(imageUrl, jsonUrl);
+        if (pid) {
+            if (pageId !== pid || boxes.length === 0) {
+                loadFromPageId(pid);
+            }
         } else {
             clearPreview();
         }
@@ -1107,16 +1119,15 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
     $mergeBtn.on('click', mergeSelectedBoxes);
     $deleteBtn.on('click', deleteSelectedBoxes);
     $verifyPageBtn.on('click', function() {
-        if (!currentJsonUrl) {
-            frappe.msgprint('JSON file URL is missing.');
+        if (!pageId) {
+            frappe.msgprint('Page ID is missing.');
             return;
         }
 
         frappe.call({
             method: 'veerpasli.veerpasli.doctype.pdf_page.pdf_page.mark_pdf_page_verified',
             args: {
-                json_url: currentJsonUrl,
-                image_url: currentImageUrl
+                page_id: pageId
             },
             callback: function(r) {
                 if (r.exc) {
@@ -1145,8 +1156,15 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         }
     });
 
+    frappe.pages['ocr-checker'].on_page_show = function() {
+        loadFromQuery();
+    };
+
     clearPreview();
-    loadFromQuery();
+    // Use setTimeout to ensure route is fully resolved by frappe before parsing
+    setTimeout(function() {
+        loadFromQuery();
+    }, 100);
 
     // ── Responsive: re-render boxes on resize / orientation change ──
     var resizeTimer = null;

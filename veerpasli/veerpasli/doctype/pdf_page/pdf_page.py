@@ -306,21 +306,11 @@ def process_ocr_box(image_url, box):
 
 
 @frappe.whitelist()
-def mark_pdf_page_verified(json_url=None, image_url=None):
-	filters = {}
-	if json_url:
-		filters['json_file'] = json_url
-	if image_url:
-		filters['page_file'] = image_url
+def mark_pdf_page_verified(page_id=None):
+	if not page_id:
+		frappe.throw('page_id is required.')
 
-	if not filters:
-		frappe.throw('Either json_url or image_url is required.')
-
-	pdf_pages = frappe.get_all('Pdf page', filters=filters, fields=['name'], limit_page_length=1)
-	if not pdf_pages:
-		frappe.throw('Pdf page not found for the provided file URL.')
-
-	doc = frappe.get_doc('Pdf page', pdf_pages[0].name)
+	doc = frappe.get_doc('Pdf page', page_id)
 	doc.db_set('status', 'verified')
 	frappe.db.commit()
 
@@ -421,6 +411,7 @@ def get_ocr_boxes(page_id):
 			segments.append(box_dict)
 		
 	return {
+		"image_url": doc.page_file,
 		"segments": segments,
 		"verified": verified
 	}
