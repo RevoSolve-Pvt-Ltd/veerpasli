@@ -331,6 +331,17 @@ def mark_pdf_page_verified(json_url=None, image_url=None):
 
 
 @frappe.whitelist()
+def set_person_profile(person_name, file_url):
+	if not person_name or not file_url:
+		frappe.throw("Person name and file URL are required.")
+	doc = frappe.get_doc("Person", person_name)
+	doc.profile = file_url
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+	return {"success": True}
+
+
+@frappe.whitelist()
 def get_ocr_boxes(page_id):
 	import json
 	doc = frappe.get_doc("Pdf page", page_id)

@@ -95,11 +95,12 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
 
         var filename = url.split('/').pop().split('?')[0];
         filename = filename.replace(/\.[^/.]+$/, '');
-        var match = filename.match(/^veerpasli_(.+)_(\d{4})[-_](\d+)$/i);
+        // Match veerpasli_{location}_{year}_{anything} — page number may have a hash suffix
+        var match = filename.match(/^veerpasli_(.+)_(\d{4})[-_]/i);
         if (match) {
             return match[1];
         }
-        match = filename.match(/^veerpasli-(.+)-\d{4}-\d+$/i);
+        match = filename.match(/^veerpasli-(.+)-\d{4}-/i);
         return match ? match[1] : filename;
     }
 
@@ -308,6 +309,59 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             }
         });
     }
+    function openImageCropperForCollector(personName, imageUrl) {
+        var fu = new frappe.ui.FileUploader({
+            allow_multiple: false,
+            on_success: function(file_doc) {
+                frappe.call({
+                    method: 'veerpasli.veerpasli.doctype.pdf_page.pdf_page.set_person_profile',
+                    args: {
+                        person_name: personName,
+                        file_url: file_doc.file_url
+                    },
+                    callback: function(r) {
+                        if (r.exc) {
+                            frappe.msgprint('Could not link profile photo to collector. Please set it manually.');
+                        } else {
+                            frappe.show_alert({ message: 'Collector profile photo saved.', indicator: 'green' });
+                        }
+                    }
+                });
+            }
+        });
+
+        // Resolve absolute URL so fetch works for private files
+        var absoluteUrl = imageUrl;
+        if (imageUrl && !imageUrl.startsWith('http')) {
+            absoluteUrl = window.location.origin + imageUrl;
+        }
+
+        fetch(absoluteUrl, { credentials: 'include' })
+            .then(function(res) {
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return res.blob();
+            })
+            .then(function(blob) {
+                // Name the file after the person so the profile photo is identifiable
+                var safePersonName = personName.replace(/[^\w\s\u0900-\u097F]/g, '').trim().replace(/\s+/g, '_');
+                var fileName = (safePersonName || 'collector') + '.png';
+                var file = new File([blob], fileName, { type: blob.type || 'image/png' });
+                fu.uploader.add_files([file]);
+                // Auto-click the crop button after the file is rendered
+                setTimeout(function() {
+                    var cropBtn = fu.dialog.$body.get(0).querySelector('button.btn-crop');
+                    if (cropBtn) {
+                        cropBtn.click();
+                    }
+                }, 600);
+            })
+            .catch(function(err) {
+                console.error('Failed to load image for cropper:', err);
+                frappe.msgprint(
+                    'Could not load image for cropping. Please set the profile photo manually from the Collector record.'
+                );
+            });
+    }
 
     function openBoxEditorModal(box) {
         var tokens = tokenizeText(box.text || '');
@@ -443,6 +497,10 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                         renderControls();
                         setStatus('Created ' + selectedEntryType + ' entry and marked as verified.', 'text-success');
                         dialog.hide();
+                        // If this was a Collector, open the image cropper to set the profile photo
+                        if (r.message && r.message.type === 'collector' && r.message.person) {
+                            openImageCropperForCollector(r.message.person, currentImageUrl);
+                        }
                     }
                 },
                 always: function() {
