@@ -29,10 +29,12 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                                 <div class="ms-md-auto text-muted small">Selected: <span id="ocrCheckerSelectedCount">0</span></div>
                             </div>
 
-                            <div id="ocrCheckerFrame" class="d-flex justify-content-center bg-light border" style="min-height: 620px; position: relative;">
-                                <div id="ocrCheckerImageWrapper" class="position-relative d-inline-block" style="display: none; max-width: 100%;">
-                                    <img id="ocrCheckerImage" src="" class="img-fluid" />
-                                    <div id="ocrCheckerOverlay" class="position-absolute" style="top: 0; left: 0; width: 100%; height: 100%;"></div>
+                            <div id="ocrCheckerFrame" class="d-flex justify-content-center bg-light border" style="min-height: 320px; position: relative; overflow: hidden; touch-action: none;">
+                                <div id="ocrCheckerZoomContainer" style="transform-origin: 0 0; will-change: transform;">
+                                    <div id="ocrCheckerImageWrapper" class="position-relative" style="display: none;">
+                                        <img id="ocrCheckerImage" src="" style="display: block; max-width: 100%; height: auto;" />
+                                        <div id="ocrCheckerOverlay" style="position: absolute; top: 0; left: 0; pointer-events: none;"></div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -113,7 +115,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         var style = document.createElement('style');
         style.id = 'ocrCheckerStyles';
         style.innerHTML = `
-            .ocr-box { position: absolute; box-sizing: border-box; cursor: pointer; transition: border-color 0.2s ease, background-color 0.2s ease; }
+            .ocr-box { position: absolute; box-sizing: border-box; cursor: pointer; transition: border-color 0.2s ease, background-color 0.2s ease; pointer-events: auto; }
             .ocr-box-original { border: 2px solid rgba(255, 0, 0, 0.75); background: rgba(255, 0, 0, 0.10); }
             .ocr-box-merged { border: 2px solid rgba(0, 123, 255, 0.75); background: rgba(0, 123, 255, 0.10); }
             .ocr-box-complete { border: 2px solid rgba(40, 167, 69, 0.85); background: rgba(40, 167, 69, 0.10); }
@@ -146,6 +148,19 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             .ocr-token-village.ocr-token-selected { background-color: #6610f2; }
             .ocr-token-amount.ocr-token-selected { background-color: #fd7e14; }
             .ocr-token-phone.ocr-token-selected { background-color: #198754; }
+            #ocrCheckerFrame { -webkit-overflow-scrolling: touch; }
+            #ocrCheckerFrame, #ocrCheckerFrame * { touch-action: none; -webkit-user-select: none; user-select: none; }
+            #ocrCheckerOverlay { pointer-events: none; }
+            #ocrCheckerOverlay .ocr-box { pointer-events: auto; }
+            @media (max-width: 768px) {
+                #ocrCheckerFrame { min-height: 300px; }
+                .ocr-box-original { border-width: 1px; }
+                .ocr-box-merged { border-width: 1px; }
+                .ocr-box-complete { border-width: 1px; }
+                .ocr-box-verified { border-width: 1.5px; }
+                .ocr-box-selected { outline-width: 2px; outline-offset: -2px; }
+                .ocr-box-split-icon { width: 32px; height: 32px; font-size: 18px; top: -18px; }
+            }
         `;
         document.head.appendChild(style);
     }
@@ -907,6 +922,19 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         setStatus('Merged ' + selectedBoxes.length + ' boxes.', 'text-success');
     }
 
+    function syncOverlaySize() {
+        var imgEl = $image[0];
+        if (!imgEl) return;
+        var renderedWidth = imgEl.offsetWidth;
+        var renderedHeight = imgEl.offsetHeight;
+        if (renderedWidth && renderedHeight) {
+            $overlay.css({
+                width: renderedWidth + 'px',
+                height: renderedHeight + 'px'
+            });
+        }
+    }
+
     function renderBoxes() {
         $overlay.empty();
         var imgEl = $image[0];
@@ -915,6 +943,9 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         if (!naturalWidth || !naturalHeight) {
             return;
         }
+
+        // Sync overlay to match the actual rendered image size
+        syncOverlaySize();
 
         var segments = boxes.filter(function(box) {
             return box && box.boundingBox;
@@ -1049,6 +1080,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 $image.one('load.autoLoad', function() {
                     $imageWrapper.show();
                     $image.show();
+                    syncOverlaySize();
                     renderBoxes();
                     renderControls();
                     setStatus('Rendered ' + boxes.length + ' boxes (' + segments.length + ' original, ' + verified.length + ' verified).', 'text-success');
@@ -1115,4 +1147,167 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
 
     clearPreview();
     loadFromQuery();
+
+    // ── Responsive: re-render boxes on resize / orientation change ──
+    var resizeTimer = null;
+    function onViewportResize() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function() {
+            if ($image[0] && $image[0].naturalWidth) {
+                syncOverlaySize();
+                renderBoxes();
+            }
+        }, 150);
+    }
+    $(window).on('resize.ocrChecker orientationchange.ocrChecker', onViewportResize);
+
+    // Use ResizeObserver for more reliable size tracking
+    if (typeof ResizeObserver !== 'undefined') {
+        var imgObserver = new ResizeObserver(function() {
+            if ($image[0] && $image[0].naturalWidth) {
+                syncOverlaySize();
+                renderBoxes();
+            }
+        });
+        imgObserver.observe($image[0]);
+    }
+
+    // ── Pinch-to-zoom & pan for mobile ──
+    var $zoomContainer = $content.find('#ocrCheckerZoomContainer');
+    var $frame = $content.find('#ocrCheckerFrame');
+    var zoomState = {
+        scale: 1,
+        translateX: 0,
+        translateY: 0,
+        initialDistance: 0,
+        initialScale: 1,
+        isPinching: false,
+        isPanning: false,
+        lastTouchX: 0,
+        lastTouchY: 0,
+        pinchMidX: 0,
+        pinchMidY: 0
+    };
+
+    function applyZoomTransform() {
+        // Clamp scale between 1 and 5
+        zoomState.scale = Math.max(1, Math.min(5, zoomState.scale));
+
+        // If at scale 1, reset position
+        if (zoomState.scale <= 1) {
+            zoomState.translateX = 0;
+            zoomState.translateY = 0;
+        } else {
+            // Constrain panning so image doesn't go out of bounds
+            var frameRect = $frame[0].getBoundingClientRect();
+            var contentWidth = $zoomContainer[0].offsetWidth * zoomState.scale;
+            var contentHeight = $zoomContainer[0].offsetHeight * zoomState.scale;
+
+            var maxX = 0;
+            var minX = Math.min(0, frameRect.width - contentWidth);
+            var maxY = 0;
+            var minY = Math.min(0, frameRect.height - contentHeight);
+
+            // Center if content is smaller than frame (rare, but good fallback)
+            if (contentWidth < frameRect.width) {
+                minX = maxX = (frameRect.width - contentWidth) / 2;
+            }
+            if (contentHeight < frameRect.height) {
+                minY = maxY = (frameRect.height - contentHeight) / 2;
+            }
+
+            zoomState.translateX = Math.max(minX, Math.min(maxX, zoomState.translateX));
+            zoomState.translateY = Math.max(minY, Math.min(maxY, zoomState.translateY));
+        }
+
+        $zoomContainer.css('transform',
+            'translate(' + zoomState.translateX + 'px, ' + zoomState.translateY + 'px) scale(' + zoomState.scale + ')'
+        );
+    }
+
+    function getTouchDistance(t1, t2) {
+        var dx = t1.clientX - t2.clientX;
+        var dy = t1.clientY - t2.clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    var frameEl = $frame[0];
+    if (frameEl) {
+        // Prevent Frappe page from scrolling when touching inside the image frame
+        frameEl.addEventListener('touchstart', function(e) {
+            e.stopPropagation();
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                zoomState.isPinching = true;
+                zoomState.isPanning = false;
+                zoomState.initialDistance = getTouchDistance(e.touches[0], e.touches[1]);
+                zoomState.initialScale = zoomState.scale;
+            } else if (e.touches.length === 1 && zoomState.scale > 1) {
+                // DO NOT preventDefault on touchstart for 1 finger, this allows tapping boxes!
+                zoomState.isPanning = true;
+                zoomState.isPinching = false;
+                zoomState.lastTouchX = e.touches[0].clientX;
+                zoomState.lastTouchY = e.touches[0].clientY;
+            }
+        }, { passive: false, capture: true });
+
+        frameEl.addEventListener('touchmove', function(e) {
+            e.stopPropagation();
+            if (zoomState.isPinching && e.touches.length === 2) {
+                e.preventDefault();
+                var currentDistance = getTouchDistance(e.touches[0], e.touches[1]);
+                var scaleChange = currentDistance / zoomState.initialDistance;
+                zoomState.scale = zoomState.initialScale * scaleChange;
+                applyZoomTransform();
+            } else if (e.touches.length === 1 && zoomState.scale > 1) {
+                e.preventDefault();
+                if (!zoomState.isPanning) {
+                    zoomState.isPanning = true;
+                    zoomState.lastTouchX = e.touches[0].clientX;
+                    zoomState.lastTouchY = e.touches[0].clientY;
+                    return;
+                }
+                var dx = e.touches[0].clientX - zoomState.lastTouchX;
+                var dy = e.touches[0].clientY - zoomState.lastTouchY;
+                zoomState.translateX += dx;
+                zoomState.translateY += dy;
+                zoomState.lastTouchX = e.touches[0].clientX;
+                zoomState.lastTouchY = e.touches[0].clientY;
+                applyZoomTransform();
+            }
+        }, { passive: false, capture: true });
+
+        frameEl.addEventListener('touchend', function(e) {
+            if (e.touches.length < 2) {
+                zoomState.isPinching = false;
+            }
+            if (e.touches.length === 1 && zoomState.scale > 1) {
+                zoomState.isPanning = true;
+                zoomState.lastTouchX = e.touches[0].clientX;
+                zoomState.lastTouchY = e.touches[0].clientY;
+            }
+            if (e.touches.length === 0) {
+                zoomState.isPanning = false;
+            }
+        }, { passive: true });
+
+        // Double-tap to reset zoom
+        var lastTapTime = 0;
+        frameEl.addEventListener('touchend', function(e) {
+            if (e.touches.length === 0 && !zoomState.isPinching) {
+                var now = Date.now();
+                if (now - lastTapTime < 300) {
+                    if (zoomState.scale > 1.1) {
+                        zoomState.scale = 1;
+                        zoomState.translateX = 0;
+                        zoomState.translateY = 0;
+                    } else {
+                        zoomState.scale = 2.5;
+                    }
+                    applyZoomTransform();
+                }
+                lastTapTime = now;
+            }
+        }, { passive: true });
+    }
 };
