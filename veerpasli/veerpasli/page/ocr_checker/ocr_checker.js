@@ -366,7 +366,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             
             html += '<div class="mb-3"><strong>Entry type</strong></div>';
             html += '<div class="d-flex flex-wrap gap-2 mb-3">';
-            ['Donor', 'Collector'].forEach(function(type) {
+            ['Donation', 'Collector'].forEach(function(type) {
                 var buttonClass = 'btn btn-sm btn-outline-secondary';
                 if (selectedEntryType === type) {
                     buttonClass = 'btn btn-sm btn-secondary active';
@@ -392,7 +392,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
 
         function submitBoxEntry() {
             if (!selectedEntryType) {
-                frappe.msgprint('Select Donor or Collector before submitting.');
+                frappe.msgprint('Select Donation or Collector before submitting.');
                 return;
             }
 
@@ -400,8 +400,8 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             if (!box.fields.name) {
                 missing.push('name');
             }
-            if (selectedEntryType === 'Donor' && !box.fields.amount) {
-                missing.push('amount (for Donor)');
+            if (selectedEntryType === 'Donation' && !box.fields.amount) {
+                missing.push('amount (for Donation)');
             }
             if (selectedEntryType === 'Collector' && !box.fields.village) {
                 missing.push('village (for Collector)');
