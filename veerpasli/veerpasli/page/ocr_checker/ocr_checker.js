@@ -566,13 +566,43 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                     frappe.msgprint('Cannot split this selection into two boxes. Choose a contiguous range of tokens and try again.');
                     return;
                 }
+
+                // Remove the old box's segments from jsonData.segments
+                removeSegmentForBox(box);
+
                 box.text = splitBoxes.left.text;
                 box.boundingBox = splitBoxes.left.boundingBox;
-                boxes.push(splitBoxes.right);
+                box.sourceSegments = [{
+                    text: splitBoxes.left.text,
+                    boundingBox: splitBoxes.left.boundingBox
+                }];
+
+                var rightBox = splitBoxes.right;
+                rightBox.sourceSegments = [{
+                    text: rightBox.text,
+                    boundingBox: rightBox.boundingBox
+                }];
+
+                if (jsonData && Array.isArray(jsonData.segments)) {
+                    jsonData.segments.push({
+                        text: box.text,
+                        boundingBox: box.boundingBox
+                    });
+                    jsonData.segments.push({
+                        text: rightBox.text,
+                        boundingBox: rightBox.boundingBox
+                    });
+                }
+
+                boxes.push(rightBox);
                 selectedTokenIds.clear();
+
+                // Persist the updated JSON data to the file
+                persistJsonData();
+
                 renderBoxes();
                 renderControls();
-                setStatus('Split the box into two boxes.', 'text-success');
+                setStatus('Split the box and updated the JSON file.', 'text-success');
                 dialog.hide();
             });
             dialog.fields_dict.content.$wrapper.find('#ocrCheckerClearTokenSelection').on('click', function() {
