@@ -470,13 +470,13 @@ def normalize_mobile_number(mobile):
 		return mobile
 	# If starts with 0, replace leading 0 with +91
 	if mobile.startswith('0'):
-		return '+91' + mobile.lstrip('0')
+		return '+91-' + mobile.lstrip('0')
 	# If 10 digits, assume Indian number and prefix +91
 	digits = re.sub(r'\D', '', mobile)
 	if len(digits) == 10:
-		return '+91' + digits
+		return '+91-' + digits
 	# Fallback: prefix +91 if not present
-	return '+91' + digits if digits else ''
+	return '+91-' + digits if digits else ''
 
 
 def get_or_create_location(location_name):
