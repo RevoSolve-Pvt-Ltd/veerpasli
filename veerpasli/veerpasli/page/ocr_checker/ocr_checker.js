@@ -1,4 +1,4 @@
-frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
+frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
     var page = frappe.ui.make_app_page({
         parent: wrapper,
         title: 'OCR Checker',
@@ -105,8 +105,6 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         match = filename.match(/^veerpasli-(.+)-\d{4}-/i);
         return match ? match[1] : filename;
     }
-
-
     function initStyles() {
         if (document.getElementById('ocrCheckerStyles')) {
             return;
@@ -122,25 +120,25 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             .ocr-box-verified { border: 3px solid rgba(40, 167, 69, 0.95); background: rgba(40, 167, 69, 0.15); }
             .ocr-box-selected { outline: 3px solid rgba(255, 193, 7, 0.85); outline-offset: -3px; }
             .ocr-box:hover { filter: saturate(1.2); }
-                .ocr-box-split-icon {
-                    position: absolute;
-                    top: -16px;
-                    right: 4px;
-                    width: 28px;
-                    height: 28px;
-                    border: none;
-                    border-radius: 4px;
-                    background: rgba(255,255,255,0.92);
-                    color: #dc3545;
-                    font-size: 16px;
-                    line-height: 1;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    cursor: pointer;
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
-                    z-index: 20;
-                }
+            .ocr-box-split-icon {
+                 position: absolute;
+                 top: -16px;
+                 right: 4px;
+                 width: 35px;
+                 height: 35px;
+                 border: none;
+                 border-radius: 50%;
+                 background: rgba(255,255,255,0.92);
+                 padding:1px;
+                 color: #dc3545;
+                 box-sizing: border-box;
+                 display: flex;
+                 align-items: center;
+                 justify-content: center;
+                 cursor: pointer;
+                 box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+                 z-index: 20;
+            }
             .ocr-checker-field { margin-bottom: 1rem; }
             .ocr-token { display: inline-block; padding: 0.12rem 0.25rem; margin: 0 0.1rem 0.1rem 0; border-radius: 3px; transition: background-color 0.2s ease, color 0.2s ease; cursor: pointer; }
             .ocr-token-selected { background: rgba(0, 0, 0, 0.65); color: #fff; border: 1px solid transparent; padding: 0.08rem 0.18rem; border-radius: 3px; }
@@ -159,8 +157,8 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 .ocr-box-complete { border-width: 1px; }
                 .ocr-box-verified { border-width: 1.5px; }
                 .ocr-box-selected { outline-width: 2px; outline-offset: -2px; }
-                .ocr-box-split-icon { width: 32px; height: 32px; font-size: 18px; top: -18px; }
-            }
+                .ocr-box-split-icon { width: 16px; height: 16px; padding: 1px; top: -8px; right: -8px; }
+            } }
         `;
         document.head.appendChild(style);
     }
@@ -219,7 +217,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
     }
 
     function splitBoxByTokenSelection(box, tokens, selectedTokenIds) {
-        var selectedIndexes = Array.from(selectedTokenIds).sort(function(a, b) { return a - b; });
+        var selectedIndexes = Array.from(selectedTokenIds).sort(function (a, b) { return a - b; });
         if (!selectedIndexes.length) {
             return null;
         }
@@ -229,13 +227,13 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             }
         }
 
-        var selectedText = selectedIndexes.map(function(index) {
+        var selectedText = selectedIndexes.map(function (index) {
             return tokens[index].value;
         }).join('').trim();
-        var remainingTokens = tokens.filter(function(token, index) {
+        var remainingTokens = tokens.filter(function (token, index) {
             return !selectedTokenIds.has(index);
         });
-        var remainingText = remainingTokens.map(function(token) {
+        var remainingText = remainingTokens.map(function (token) {
             return token.value;
         }).join('').trim();
 
@@ -243,10 +241,10 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             return null;
         }
 
-        var totalLength = tokens.reduce(function(sum, token) {
+        var totalLength = tokens.reduce(function (sum, token) {
             return sum + token.value.length;
         }, 0);
-        var selectedLength = selectedIndexes.reduce(function(sum, index) {
+        var selectedLength = selectedIndexes.reduce(function (sum, index) {
             return sum + tokens[index].value.length;
         }, 0);
 
@@ -315,7 +313,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
     }
 
     function renderFieldLabels(box, $box) {
-        fieldNames.forEach(function(field, index) {
+        fieldNames.forEach(function (field, index) {
             if (box.fields[field]) {
                 var label = field.charAt(0).toUpperCase() + field.slice(1) + ': ' + box.fields[field];
                 var top = 4 + index * 20;
@@ -327,14 +325,14 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
     function openImageCropperForCollector(personName, imageUrl) {
         var fu = new frappe.ui.FileUploader({
             allow_multiple: false,
-            on_success: function(file_doc) {
+            on_success: function (file_doc) {
                 frappe.call({
                     method: 'veerpasli.veerpasli.doctype.pdf_page.pdf_page.set_person_profile',
                     args: {
                         person_name: personName,
                         file_url: file_doc.file_url
                     },
-                    callback: function(r) {
+                    callback: function (r) {
                         if (r.exc) {
                             frappe.msgprint('Could not link profile photo to collector. Please set it manually.');
                         } else {
@@ -352,25 +350,25 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         }
 
         fetch(absoluteUrl, { credentials: 'include' })
-            .then(function(res) {
+            .then(function (res) {
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 return res.blob();
             })
-            .then(function(blob) {
+            .then(function (blob) {
                 // Name the file after the person so the profile photo is identifiable
                 var safePersonName = personName.replace(/[^\w\s\u0900-\u097F]/g, '').trim().replace(/\s+/g, '_');
                 var fileName = (safePersonName || 'collector') + '.png';
                 var file = new File([blob], fileName, { type: blob.type || 'image/png' });
                 fu.uploader.add_files([file]);
                 // Auto-click the crop button after the file is rendered
-                setTimeout(function() {
+                setTimeout(function () {
                     var cropBtn = fu.dialog.$body.get(0).querySelector('button.btn-crop');
                     if (cropBtn) {
                         cropBtn.click();
                     }
                 }, 600);
             })
-            .catch(function(err) {
+            .catch(function (err) {
                 console.error('Failed to load image for cropper:', err);
                 frappe.msgprint(
                     'Could not load image for cropping. Please set the profile photo manually from the Collector record.'
@@ -392,7 +390,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         function renderModalContent() {
             var html = '<div class="ocr-checker-modal">';
             html += '<div class="mb-3"><strong>Combined box text</strong></div>';
-            
+
             var assignedTokenSet = new Set();
             for (var field in box.fields) {
                 if (field !== 'entryType' && box.fields[field]) {
@@ -404,13 +402,13 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                     }
                 }
             }
-            var remainingTokens = tokens.filter(function(token, index) {
+            var remainingTokens = tokens.filter(function (token, index) {
                 return !assignedTokenSet.has(index);
             });
-            
+
             html += '<div class="ocr-token-container mb-3" style="padding: 0.75rem; border: 1px solid #dee2e6; border-radius: 4px; background: #fff; min-height: 60px; max-height: 150px; overflow-y: auto;">';
             if (remainingTokens.length > 0) {
-                remainingTokens.forEach(function(token) {
+                remainingTokens.forEach(function (token) {
                     var originalIndex = tokens.indexOf(token);
                     var cssClass = 'ocr-token';
                     if (selectedTokenIds.has(originalIndex)) {
@@ -425,10 +423,10 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 html += '<span class="text-muted">All text has been assigned to fields.</span>';
             }
             html += '</div>';
-            
+
             html += '<div class="mb-3"><strong>Select field</strong></div>';
             html += '<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">';
-            fieldNames.forEach(function(field) {
+            fieldNames.forEach(function (field) {
                 var buttonClass = 'btn btn-sm btn-outline-primary';
                 if (activeField === field) {
                     buttonClass = 'btn btn-sm btn-primary';
@@ -438,10 +436,10 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             html += '<button id="ocrCheckerAssignToken" class="btn btn-sm btn-success ms-2">Assign</button>';
             html += '<button id="ocrCheckerClearTokenSelection" class="btn btn-sm btn-secondary">Clear</button>';
             html += '</div>';
-            
+
             html += '<div class="mb-3"><strong>Entry type</strong></div>';
             html += '<div class="d-flex flex-wrap gap-2 mb-3">';
-            ['Donation', 'Collector'].forEach(function(type) {
+            ['Donation', 'Collector'].forEach(function (type) {
                 var buttonClass = 'btn btn-sm btn-outline-secondary';
                 if (selectedEntryType === type) {
                     buttonClass = 'btn btn-sm btn-secondary active';
@@ -449,9 +447,9 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 html += '<button type="button" class="ocr-entry-type ' + buttonClass + '" data-type="' + type + '">' + type + '</button>';
             });
             html += '</div>';
-            
+
             html += '<div class="mb-3"><strong>Assigned fields</strong></div>';
-            fieldNames.forEach(function(field) {
+            fieldNames.forEach(function (field) {
                 html += '<div class="mb-1"><strong>' + field.charAt(0).toUpperCase() + field.slice(1) + ':</strong> ' + (box.fields[field] ? '<code>' + frappe.utils.escape_html(box.fields[field]) + '</code>' : '<span class="text-muted">not set</span>') + '</div>';
             });
             html += '</div>';
@@ -493,7 +491,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 return;
             }
 
-            dialog.set_primary_action('Submitting...', function() {});
+            dialog.set_primary_action('Submitting...', function () { });
 
             var entryTypeForBackend = selectedEntryType === 'Collector' ? 'collector' : 'donation';
             var wasVerified = (box.status === 'verified');
@@ -507,7 +505,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                         fields: box.fields
                     })
                 },
-                callback: function(r) {
+                callback: function (r) {
                     if (r.exc) {
                         setStatus('Unable to create entry: ' + (r.exc && r.exc.message ? r.exc.message : r.message), 'text-danger');
                     } else {
@@ -524,7 +522,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                         }
                     }
                 },
-                always: function() {
+                always: function () {
                     dialog.set_primary_action('Submit', submitBoxEntry);
                 }
             });
@@ -532,16 +530,16 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
 
         function redraw() {
             dialog.fields_dict.content.$wrapper.html(renderModalContent());
-            dialog.fields_dict.content.$wrapper.find('.ocr-entry-type').on('click', function() {
+            dialog.fields_dict.content.$wrapper.find('.ocr-entry-type').on('click', function () {
                 selectedEntryType = $(this).attr('data-type');
                 redraw();
             });
-            dialog.fields_dict.content.$wrapper.find('.ocr-field-select').on('click', function() {
+            dialog.fields_dict.content.$wrapper.find('.ocr-field-select').on('click', function () {
                 activeField = $(this).attr('data-field');
                 selectedTokenIds.clear();
                 redraw();
             });
-            dialog.fields_dict.content.$wrapper.find('.ocr-token').on('click', function() {
+            dialog.fields_dict.content.$wrapper.find('.ocr-token').on('click', function () {
                 if (!activeField) {
                     return;
                 }
@@ -553,7 +551,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 }
                 redraw();
             });
-            dialog.fields_dict.content.$wrapper.find('#ocrCheckerAssignToken').on('click', function() {
+            dialog.fields_dict.content.$wrapper.find('#ocrCheckerAssignToken').on('click', function () {
                 if (!activeField) {
                     frappe.msgprint('Choose a field before assigning text.');
                     return;
@@ -562,18 +560,18 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                     frappe.msgprint('Select text tokens before assigning.');
                     return;
                 }
-                var assignedValue = tokens.filter(function(token, index) {
+                var assignedValue = tokens.filter(function (token, index) {
                     return selectedTokenIds.has(index);
-                }).map(function(token) {
+                }).map(function (token) {
                     return token.value;
                 }).join('').trim();
                 var assignedField = activeField;
                 box.fields[assignedField] = assignedValue;
-                
-                tokens = tokens.filter(function(token, index) {
+
+                tokens = tokens.filter(function (token, index) {
                     return !selectedTokenIds.has(index);
                 });
-                
+
                 activeField = null;
                 selectedTokenIds.clear();
                 redraw();
@@ -581,7 +579,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 renderControls();
                 setStatus('Tagged text to ' + assignedField + '.', 'text-success');
             });
-            dialog.fields_dict.content.$wrapper.find('#ocrCheckerClearTokenSelection').on('click', function() {
+            dialog.fields_dict.content.$wrapper.find('#ocrCheckerClearTokenSelection').on('click', function () {
                 selectedTokenIds.clear();
                 redraw();
             });
@@ -601,7 +599,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             var html = '<div class="ocr-checker-modal">';
             html += '<div class="mb-3"><strong>Split box text</strong></div>';
             html += '<div class="ocr-token-container mb-3" style="padding: 0.75rem; border: 1px solid #dee2e6; border-radius: 4px; background: #fff; max-height: 260px; overflow-y: auto;">';
-            tokens.forEach(function(token, index) {
+            tokens.forEach(function (token, index) {
                 var cssClass = 'ocr-token';
                 if (selectedTokenIds.has(index)) {
                     cssClass += ' ocr-token-selected';
@@ -627,7 +625,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
 
         function redraw() {
             dialog.fields_dict.content.$wrapper.html(renderModalContent());
-            dialog.fields_dict.content.$wrapper.find('.ocr-token').on('click', function() {
+            dialog.fields_dict.content.$wrapper.find('.ocr-token').on('click', function () {
                 var index = parseInt($(this).attr('data-token-index'), 10);
                 if (selectedTokenIds.has(index)) {
                     selectedTokenIds.delete(index);
@@ -636,7 +634,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 }
                 redraw();
             });
-            dialog.fields_dict.content.$wrapper.find('#ocrCheckerSplitOnly').on('click', function() {
+            dialog.fields_dict.content.$wrapper.find('#ocrCheckerSplitOnly').on('click', function () {
                 if (!selectedTokenIds.size) {
                     frappe.msgprint('Select tokens before splitting the box.');
                     return;
@@ -685,13 +683,13 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 setStatus('Split the box and updated the JSON file.', 'text-success');
                 dialog.hide();
             });
-            dialog.fields_dict.content.$wrapper.find('#ocrCheckerClearTokenSelection').on('click', function() {
+            dialog.fields_dict.content.$wrapper.find('#ocrCheckerClearTokenSelection').on('click', function () {
                 selectedTokenIds.clear();
                 redraw();
             });
         }
 
-        dialog.set_primary_action('Done', function() {
+        dialog.set_primary_action('Done', function () {
             dialog.hide();
         });
 
@@ -713,10 +711,10 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
 
     function unionBoundingBox(boxList) {
         var edges = boxList.map(getBoxEdges);
-        var left = Math.min.apply(null, edges.map(function(e) { return e.left; }));
-        var top = Math.min.apply(null, edges.map(function(e) { return e.top; }));
-        var right = Math.max.apply(null, edges.map(function(e) { return e.right; }));
-        var bottom = Math.max.apply(null, edges.map(function(e) { return e.bottom; }));
+        var left = Math.min.apply(null, edges.map(function (e) { return e.left; }));
+        var top = Math.min.apply(null, edges.map(function (e) { return e.top; }));
+        var right = Math.max.apply(null, edges.map(function (e) { return e.right; }));
+        var bottom = Math.max.apply(null, edges.map(function (e) { return e.bottom; }));
 
         return {
             centerPerX: (left + right) / 2,
@@ -727,7 +725,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
     }
 
     function sortBoxesForMerge(boxList) {
-        return boxList.slice().sort(function(a, b) {
+        return boxList.slice().sort(function (a, b) {
             var aEdges = getBoxEdges(a);
             var bEdges = getBoxEdges(b);
             if (Math.abs(aEdges.top - bEdges.top) > 0.01) {
@@ -738,7 +736,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
     }
 
     function allBoxesComplete() {
-        return boxes.length > 0 && boxes.every(function(box) {
+        return boxes.length > 0 && boxes.every(function (box) {
             return box.status === 'complete';
         });
     }
@@ -755,9 +753,9 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             boundingBox: box.boundingBox
         }];
 
-        jsonData.segments = jsonData.segments.filter(function(segment) {
+        jsonData.segments = jsonData.segments.filter(function (segment) {
 
-            var shouldRemove = segmentsToRemove.some(function(source) {
+            var shouldRemove = segmentsToRemove.some(function (source) {
 
                 return (
                     segment.text === source.text &&
@@ -793,7 +791,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 page_id: pageId,
                 boxes: JSON.stringify(boxes)
             },
-            callback: function(r) {
+            callback: function (r) {
                 if (r.exc) {
                     console.error('Failed to update OCR boxes:', r.exc);
                 }
@@ -806,7 +804,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             return;
         }
 
-        boxes = boxes.filter(function(box) {
+        boxes = boxes.filter(function (box) {
             if (selectedBoxIds.has(box.id)) {
                 removeSegmentForBox(box);
                 return false;
@@ -836,21 +834,21 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
     }
 
     function allBoxesVerified() {
-        return boxes.length > 0 && boxes.every(function(box) {
+        return boxes.length > 0 && boxes.every(function (box) {
             return box.status === 'verified';
         });
     }
 
 
     function onBoxClick(boxId) {
-        var box = boxes.find(function(item) { return item.id === boxId; });
+        var box = boxes.find(function (item) { return item.id === boxId; });
         if (!box) {
             return;
         }
 
         if (box.status === 'merged' || box.status === 'complete' || box.status === 'verified') {
             selectedBoxIds.clear();
-            boxes.forEach(function(item) { item.selected = false; });
+            boxes.forEach(function (item) { item.selected = false; });
             renderBoxes();
             renderControls();
             openBoxEditorModal(box);
@@ -873,7 +871,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             return;
         }
 
-        var selectedBoxes = boxes.filter(function(box) {
+        var selectedBoxes = boxes.filter(function (box) {
             return selectedBoxIds.has(box.id);
         });
 
@@ -882,14 +880,14 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         }
 
         selectedBoxes = sortBoxesForMerge(selectedBoxes);
-        var mergedText = selectedBoxes.map(function(box) { return box.text.trim(); }).filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+        var mergedText = selectedBoxes.map(function (box) { return box.text.trim(); }).filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
         var mergedBox = {
             id: nextBoxId++,
             text: mergedText,
             boundingBox: unionBoundingBox(selectedBoxes),
             status: 'merged',
             selected: false,
-            mergedIds: selectedBoxes.map(function(box) { return box.id; }),
+            mergedIds: selectedBoxes.map(function (box) { return box.id; }),
             sourceSegments: [],
             fields: {
                 name: '',
@@ -899,7 +897,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             }
         };
 
-        selectedBoxes.forEach(function(box) {
+        selectedBoxes.forEach(function (box) {
             if (box.sourceSegments) {
                 mergedBox.sourceSegments =
                     mergedBox.sourceSegments.concat(box.sourceSegments);
@@ -911,7 +909,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             }
         });
 
-        boxes = boxes.filter(function(box) {
+        boxes = boxes.filter(function (box) {
             return !selectedBoxIds.has(box.id);
         });
 
@@ -948,13 +946,13 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         // Sync overlay to match the actual rendered image size
         syncOverlaySize();
 
-        var segments = boxes.filter(function(box) {
+        var segments = boxes.filter(function (box) {
             return box && box.boundingBox;
         });
 
         $segmentCount.text(segments.length + ' boxes');
 
-        segments.forEach(function(box) {
+        segments.forEach(function (box) {
             var bb = box.boundingBox;
             if (
                 bb.centerPerX == null ||
@@ -983,24 +981,26 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
 
             $box.addClass(
                 box.status === 'verified' ? 'ocr-box-verified' :
-                box.status === 'complete' ? 'ocr-box-complete' :
-                box.status === 'merged' ? 'ocr-box-merged' :
-                'ocr-box-original'
+                    box.status === 'complete' ? 'ocr-box-complete' :
+                        box.status === 'merged' ? 'ocr-box-merged' :
+                            'ocr-box-original'
             );
 
             if (box.selected && box.status !== 'verified') {
                 $box.addClass('ocr-box-selected');
                 var $splitIcon = $(
-                    '<button class="ocr-box-split-icon" type="button" title="Split box">✂</button>'
+                    '<button class="ocr-box-split-icon" type="button" title="Split box">' +
+                    '<img src="/assets/veerpasli/icons/scissor.svg" style="width: 100%; height: 100%; display: block;" />' +
+                    '</button>'
                 );
-                $splitIcon.on('click', function(event) {
+                $splitIcon.on('click', function (event) {
                     event.stopPropagation();
                     openSplitModal(box);
                 });
                 $box.append($splitIcon);
             }
 
-            $box.on('click', function(event) {
+            $box.on('click', function (event) {
                 event.stopPropagation();
                 onBoxClick(box.id);
             });
@@ -1033,7 +1033,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             args: {
                 page_id: pageId
             },
-            callback: function(r) {
+            callback: function (r) {
                 if (r.exc) {
                     setStatus('Failed to load OCR boxes: ' + (r.exc.message || r.message), 'text-danger');
                     return;
@@ -1043,7 +1043,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 var dbBoxes = Array.isArray(data.boxes) ? data.boxes : [];
                 currentImageUrl = data.image_url;
 
-                dbBoxes.forEach(function(dbBox) {
+                dbBoxes.forEach(function (dbBox) {
                     if (dbBox && dbBox.boundingBox) {
                         var boxObj = createBox(dbBox, dbBox.status || 'original');
                         boxObj.fields = dbBox.fields || boxObj.fields;
@@ -1054,17 +1054,17 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 initStyles();
 
                 $image.off('load.autoLoad error.autoLoad');
-                $image.one('load.autoLoad', function() {
+                $image.one('load.autoLoad', function () {
                     $imageWrapper.show();
                     $image.show();
                     syncOverlaySize();
                     renderBoxes();
                     renderControls();
-                    var originalCount = boxes.filter(function(b) { return b.status === 'original'; }).length;
-                    var verifiedCount = boxes.filter(function(b) { return b.status === 'verified'; }).length;
+                    var originalCount = boxes.filter(function (b) { return b.status === 'original'; }).length;
+                    var verifiedCount = boxes.filter(function (b) { return b.status === 'verified'; }).length;
                     setStatus('Rendered ' + boxes.length + ' boxes (' + originalCount + ' original, ' + verifiedCount + ' verified).', 'text-success');
                 });
-                $image.one('error.autoLoad', function() {
+                $image.one('error.autoLoad', function () {
                     setStatus('Failed to load image from URL.', 'text-danger');
                 });
                 if (currentImageUrl) {
@@ -1079,7 +1079,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
     function loadFromQuery() {
         var pid = null;
         var route = frappe.get_route();
-        
+
         if (frappe.route_options && frappe.route_options.page_id) {
             pid = frappe.route_options.page_id;
             frappe.route_options = null;
@@ -1101,7 +1101,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
 
     $mergeBtn.on('click', mergeSelectedBoxes);
     $deleteBtn.on('click', deleteSelectedBoxes);
-    $verifyPageBtn.on('click', function() {
+    $verifyPageBtn.on('click', function () {
         if (!pageId) {
             frappe.msgprint('Page ID is missing.');
             return;
@@ -1112,7 +1112,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             args: {
                 page_id: pageId
             },
-            callback: function(r) {
+            callback: function (r) {
                 if (r.exc) {
                     frappe.msgprint('Failed to mark page verified: ' + (r.exc && r.exc.message ? r.exc.message : r.message));
                 } else {
@@ -1122,16 +1122,16 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             }
         });
     });
-    $clearSelectionBtn.on('click', function() {
+    $clearSelectionBtn.on('click', function () {
         selectedBoxIds.clear();
-        boxes.forEach(function(box) {
+        boxes.forEach(function (box) {
             box.selected = false;
         });
         renderBoxes();
         renderControls();
     });
 
-    $(document).on('keydown.ocrChecker', function(event) {
+    $(document).on('keydown.ocrChecker', function (event) {
         var key = event.key ? event.key.toLowerCase() : '';
         if ((event.ctrlKey || event.metaKey) && key === 'm') {
             event.preventDefault();
@@ -1139,13 +1139,13 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         }
     });
 
-    frappe.pages['ocr-checker'].on_page_show = function() {
+    frappe.pages['ocr-checker'].on_page_show = function () {
         loadFromQuery();
     };
 
     clearPreview();
     // Use setTimeout to ensure route is fully resolved by frappe before parsing
-    setTimeout(function() {
+    setTimeout(function () {
         loadFromQuery();
     }, 100);
 
@@ -1153,7 +1153,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
     var resizeTimer = null;
     function onViewportResize() {
         clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(function() {
+        resizeTimer = setTimeout(function () {
             if ($image[0] && $image[0].naturalWidth) {
                 syncOverlaySize();
                 renderBoxes();
@@ -1164,7 +1164,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
 
     // Use ResizeObserver for more reliable size tracking
     if (typeof ResizeObserver !== 'undefined') {
-        var imgObserver = new ResizeObserver(function() {
+        var imgObserver = new ResizeObserver(function () {
             if ($image[0] && $image[0].naturalWidth) {
                 syncOverlaySize();
                 renderBoxes();
@@ -1235,7 +1235,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
     var frameEl = $frame[0];
     if (frameEl) {
         // Prevent Frappe page from scrolling when touching inside the image frame
-        frameEl.addEventListener('touchstart', function(e) {
+        frameEl.addEventListener('touchstart', function (e) {
             e.stopPropagation();
             if (e.touches.length === 2) {
                 e.preventDefault();
@@ -1252,7 +1252,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             }
         }, { passive: false, capture: true });
 
-        frameEl.addEventListener('touchmove', function(e) {
+        frameEl.addEventListener('touchmove', function (e) {
             e.stopPropagation();
             if (zoomState.isPinching && e.touches.length === 2) {
                 e.preventDefault();
@@ -1278,7 +1278,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             }
         }, { passive: false, capture: true });
 
-        frameEl.addEventListener('touchend', function(e) {
+        frameEl.addEventListener('touchend', function (e) {
             if (e.touches.length < 2) {
                 zoomState.isPinching = false;
             }
@@ -1294,7 +1294,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
 
         // Double-tap to reset zoom
         var lastTapTime = 0;
-        frameEl.addEventListener('touchend', function(e) {
+        frameEl.addEventListener('touchend', function (e) {
             if (e.touches.length === 0 && !zoomState.isPinching) {
                 var now = Date.now();
                 if (now - lastTapTime < 300) {
