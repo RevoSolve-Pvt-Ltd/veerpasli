@@ -1037,36 +1037,16 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                     setStatus('Failed to load OCR boxes: ' + (r.exc.message || r.message), 'text-danger');
                     return;
                 }
-                var data = r.message || { segments: [], verified: [] };
+                var data = r.message || { boxes: [] };
                 jsonData = data;
-                var segments = Array.isArray(data.segments) ? data.segments : [];
-                var verified = Array.isArray(data.verified) ? data.verified : [];
+                var dbBoxes = Array.isArray(data.boxes) ? data.boxes : [];
                 currentImageUrl = data.image_url;
 
-                verified.forEach(function(verifiedBox) {
-                    if (verifiedBox && verifiedBox.boundingBox) {
-                        var boxObj = createBox(verifiedBox, 'verified');
-                        boxObj.fields = verifiedBox.fields || boxObj.fields;
+                dbBoxes.forEach(function(dbBox) {
+                    if (dbBox && dbBox.boundingBox) {
+                        var boxObj = createBox(dbBox, dbBox.status || 'original');
+                        boxObj.fields = dbBox.fields || boxObj.fields;
                         boxes.push(boxObj);
-                    }
-                });
-
-                var verifiedKeys = verified.map(function(verifiedBox) {
-                    return JSON.stringify({
-                        text: verifiedBox.text,
-                        boundingBox: verifiedBox.boundingBox
-                    });
-                });
-
-                segments.forEach(function(segment) {
-                    if (segment && segment.boundingBox) {
-                        var key = JSON.stringify({
-                            text: segment.text,
-                            boundingBox: segment.boundingBox
-                        });
-                        if (verifiedKeys.indexOf(key) === -1) {
-                            boxes.push(createBox(segment, 'original'));
-                        }
                     }
                 });
 
@@ -1079,7 +1059,9 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                     syncOverlaySize();
                     renderBoxes();
                     renderControls();
-                    setStatus('Rendered ' + boxes.length + ' boxes (' + segments.length + ' original, ' + verified.length + ' verified).', 'text-success');
+                    var originalCount = boxes.filter(function(b) { return b.status === 'original'; }).length;
+                    var verifiedCount = boxes.filter(function(b) { return b.status === 'verified'; }).length;
+                    setStatus('Rendered ' + boxes.length + ' boxes (' + originalCount + ' original, ' + verifiedCount + ' verified).', 'text-success');
                 });
                 $image.one('error.autoLoad', function() {
                     setStatus('Failed to load image from URL.', 'text-danger');

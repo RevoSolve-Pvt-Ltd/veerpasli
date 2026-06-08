@@ -78,7 +78,7 @@ def process_image(docname):
 					segments = data.get("segments", [])
 					
 					# Clear existing boxes
-					doc.ocr_boxes = []
+					doc.set("ocr_boxes", [])
 					for segment in segments:
 						bb = segment.get("boundingBox") or {}
 						doc.append("ocr_boxes", {
@@ -384,9 +384,48 @@ def get_ocr_boxes(page_id):
 			except Exception as e:
 				frappe.log_error(f"Error migrating JSON to child table for {page_id}: {str(e)}")
 	
+	# Deduplicate existing ocr_boxes in the database if duplicates exist
+	seen = {}
+	duplicates_found = False
+	unique_boxes = []
+	for row in doc.ocr_boxes:
+		cx = round(row.center_x or 0.0, 4)
+		cy = round(row.center_y or 0.0, 4)
+		w = round(row.width or 0.0, 4)
+		h = round(row.height or 0.0, 4)
+		key = (row.text, cx, cy, w, h)
+		if key in seen:
+			duplicates_found = True
+			existing_row = seen[key]
+			if existing_row.status != "verified" and row.status == "verified":
+				unique_boxes.remove(existing_row)
+				seen[key] = row
+				unique_boxes.append(row)
+		else:
+			seen[key] = row
+			unique_boxes.append(row)
+
+	if duplicates_found:
+		doc.set("ocr_boxes", [])
+		for row in unique_boxes:
+			doc.append("ocr_boxes", {
+				"text": row.text,
+				"center_x": row.center_x,
+				"center_y": row.center_y,
+				"width": row.width,
+				"height": row.height,
+				"person_name": row.person_name,
+				"village": row.village,
+				"amount": row.amount,
+				"phone": row.phone,
+				"entry_type": row.entry_type,
+				"status": row.status
+			})
+		doc.save(ignore_permissions=True)
+		frappe.db.commit()
+
 	# Convert child table to the format expected by ocr_checker.js
-	segments = []
-	verified = []
+	boxes = []
 	for row in doc.ocr_boxes:
 		box_dict = {
 			"text": row.text,
@@ -396,24 +435,20 @@ def get_ocr_boxes(page_id):
 				"centerPerY": row.center_y,
 				"perWidth": row.width,
 				"perHeight": row.height
+			},
+			"fields": {
+				"name": row.person_name or "",
+				"village": row.village or "",
+				"amount": row.amount or "",
+				"phone": row.phone or "",
+				"entryType": row.entry_type or ""
 			}
 		}
-		if row.status == "verified":
-			box_dict["fields"] = {
-				"name": row.person_name,
-				"village": row.village,
-				"amount": row.amount,
-				"phone": row.phone,
-				"entryType": row.entry_type
-			}
-			verified.append(box_dict)
-		else:
-			segments.append(box_dict)
+		boxes.append(box_dict)
 		
 	return {
 		"image_url": doc.page_file,
-		"segments": segments,
-		"verified": verified
+		"boxes": boxes
 	}
 
 
@@ -423,7 +458,7 @@ def update_ocr_boxes(page_id, boxes):
 		boxes = frappe.parse_json(boxes)
 	
 	doc = frappe.get_doc("Pdf page", page_id)
-	doc.ocr_boxes = []
+	doc.set("ocr_boxes", [])
 	
 	for box in boxes:
 		bb = box.get("boundingBox") or {}
