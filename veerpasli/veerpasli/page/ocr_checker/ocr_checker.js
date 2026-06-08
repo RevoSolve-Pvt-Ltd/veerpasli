@@ -119,7 +119,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             .ocr-box-original { border: 2px solid rgba(255, 0, 0, 0.75); background: rgba(255, 0, 0, 0.10); }
             .ocr-box-merged { border: 2px solid rgba(0, 123, 255, 0.75); background: rgba(0, 123, 255, 0.10); }
             .ocr-box-complete { border: 2px solid rgba(40, 167, 69, 0.85); background: rgba(40, 167, 69, 0.10); }
-            .ocr-box-verified { border: 3px solid rgba(40, 167, 69, 0.95); background: rgba(40, 167, 69, 0.15); pointer-events: none; }
+            .ocr-box-verified { border: 3px solid rgba(40, 167, 69, 0.95); background: rgba(40, 167, 69, 0.15); }
             .ocr-box-selected { outline: 3px solid rgba(255, 193, 7, 0.85); outline-offset: -3px; }
             .ocr-box:hover { filter: saturate(1.2); }
                 .ocr-box-split-icon {
@@ -383,6 +383,11 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
         var activeField = null;
         var selectedTokenIds = new Set();
         var selectedEntryType = box.fields.entryType || 'Donation';
+        if (selectedEntryType.toLowerCase() === 'collector') {
+            selectedEntryType = 'Collector';
+        } else if (selectedEntryType.toLowerCase() === 'donation') {
+            selectedEntryType = 'Donation';
+        }
 
         function renderModalContent() {
             var html = '<div class="ocr-checker-modal">';
@@ -491,6 +496,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             dialog.set_primary_action('Submitting...', function() {});
 
             var entryTypeForBackend = selectedEntryType === 'Collector' ? 'collector' : 'donation';
+            var wasVerified = (box.status === 'verified');
 
             frappe.call({
                 method: 'veerpasli.veerpasli.doctype.pdf_page.pdf_page.process_ocr_box',
@@ -513,7 +519,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                         setStatus('Created ' + selectedEntryType + ' entry and marked as verified.', 'text-success');
                         dialog.hide();
                         // If this was a Collector, open the image cropper to set the profile photo
-                        if (r.message && r.message.type === 'collector' && r.message.person) {
+                        if (!wasVerified && r.message && r.message.type === 'collector' && r.message.person) {
                             openImageCropperForCollector(r.message.person, currentImageUrl);
                         }
                     }
@@ -842,12 +848,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
             return;
         }
 
-        if (box.status === 'verified') {
-            frappe.msgprint('This box has been verified and cannot be edited.');
-            return;
-        }
-
-        if (box.status === 'merged' || box.status === 'complete') {
+        if (box.status === 'merged' || box.status === 'complete' || box.status === 'verified') {
             selectedBoxIds.clear();
             boxes.forEach(function(item) { item.selected = false; });
             renderBoxes();
@@ -977,7 +978,7 @@ frappe.pages['ocr-checker'].on_page_load = function(wrapper) {
                 top: top + '%',
                 width: boxWidth + '%',
                 height: boxHeight + '%',
-                pointerEvents: box.status === 'verified' ? 'none' : 'auto'
+                pointerEvents: 'auto'
             });
 
             $box.addClass(
