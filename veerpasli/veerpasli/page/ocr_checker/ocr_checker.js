@@ -599,7 +599,11 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                     image_url: imageUrl,
                     box: JSON.stringify({
                         type: entryTypeForBackend,
-                        fields: box.fields
+                        fields: box.fields,
+                        centerPerX: box.boundingBox ? box.boundingBox.centerPerX : null,
+                        centerPerY: box.boundingBox ? box.boundingBox.centerPerY : null,
+                        perWidth: box.boundingBox ? box.boundingBox.perWidth : null,
+                        perHeight: box.boundingBox ? box.boundingBox.perHeight : null
                     })
                 },
                 callback: function (r) {

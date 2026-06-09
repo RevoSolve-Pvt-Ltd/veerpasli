@@ -17,7 +17,15 @@
   "collector_information_section",
   "collector",
   "donors_section",
-  "list_of_donors"
+  "list_of_donors",
+  "validation_image_section",
+  "ocr_image_url",
+  "ocr_preview",
+  "column_break_val",
+  "ocr_box_x",
+  "ocr_box_y",
+  "ocr_box_w",
+  "ocr_box_h"
  ],
  "fields": [
   {
@@ -96,6 +104,46 @@
    "fieldtype": "Table",
    "label": "List of Donors",
    "options": "Donor"
+  },
+  {
+   "fieldname": "validation_image_section",
+   "fieldtype": "Section Break",
+   "label": "Validation Image"
+  },
+  {
+   "fieldname": "ocr_image_url",
+   "fieldtype": "Data",
+   "label": "OCR Image URL",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ocr_preview",
+   "fieldtype": "HTML",
+   "label": "OCR Bounding Box Preview"
+  },
+  {
+   "fieldname": "ocr_box_x",
+   "fieldtype": "Float",
+   "label": "OCR Box X",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ocr_box_y",
+   "fieldtype": "Float",
+   "label": "OCR Box Y",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ocr_box_w",
+   "fieldtype": "Float",
+   "label": "OCR Box Width",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ocr_box_h",
+   "fieldtype": "Float",
+   "label": "OCR Box Height",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,

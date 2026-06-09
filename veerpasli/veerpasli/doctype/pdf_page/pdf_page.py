@@ -241,6 +241,11 @@ def process_ocr_box(image_url, box):
 	ref_person_id = fields.get('reference_person')
 	ref_donation_id = fields.get('reference_donation')
 
+	center_x = box.get('centerPerX')
+	center_y = box.get('centerPerY')
+	width = box.get('perWidth')
+	height = box.get('perHeight')
+
 	if entry_type not in ('collector', 'donation'):
 		frappe.throw("Entry type must be Collector or Donation.")
 
@@ -263,6 +268,7 @@ def process_ocr_box(image_url, box):
 				donation_doc = frappe.get_doc('Donation', ref_donation_id)
 				old_donor_id = donation_doc.takti
 				old_village_name = donation_doc.village
+				remove_person_tagged_box('Donation', ref_donation_id)
 				frappe.delete_doc('Donation', ref_donation_id, ignore_permissions=True)
 				if old_donor_id and frappe.db.exists('Person', old_donor_id):
 					if frappe.db.count('Donation', {'takti': old_donor_id}) == 0:
@@ -316,6 +322,10 @@ def process_ocr_box(image_url, box):
 				location_name=location_doc.name
 			)
 			person_id = person.name
+
+		if center_x is not None:
+			remove_person_tagged_box('Collector', f"{person_id}:{location_doc.name}")
+			update_person_tagged_box(person_id, image_url, center_x, center_y, width, height, 'Collector', f"{person_id}:{location_doc.name}")
 
 		return {
 			'type': 'collector',
@@ -418,12 +428,24 @@ def process_ocr_box(image_url, box):
 		donation.amount_english = total_amount_english
 		donation.village = village_doc.name
 		donation.location = location_doc.name
+		donation.ocr_image_url = image_url
+		donation.ocr_box_x = center_x
+		donation.ocr_box_y = center_y
+		donation.ocr_box_w = width
+		donation.ocr_box_h = height
 
 		collector = find_collector_for_location(location_doc.name)
 		if collector:
 			donation.collector = collector.name
 
 		donation.save(ignore_permissions=True)
+
+		if center_x is not None:
+			remove_person_tagged_box('Donation', donation.name)
+			update_person_tagged_box(donation.takti, image_url, center_x, center_y, width, height, 'Donation', donation.name)
+			for d_row in donation.list_of_donors:
+				if d_row.donor_name != donation.takti:
+					update_person_tagged_box(d_row.donor_name, image_url, center_x, center_y, width, height, 'Donation', donation.name)
 
 		# NOW clean up the old village (donation is saved, so DB references are correct)
 		if old_village_name and old_village_name != village_doc.name:
@@ -457,7 +479,12 @@ def process_ocr_box(image_url, box):
 			'village': village_doc.name,
 			'location': location_doc.name,
 			'collector': collector.name,
-			'list_of_donors': []
+			'list_of_donors': [],
+			'ocr_image_url': image_url,
+			'ocr_box_x': center_x,
+			'ocr_box_y': center_y,
+			'ocr_box_w': width,
+			'ocr_box_h': height
 		})
 
 		if not haste_names:
@@ -480,6 +507,12 @@ def process_ocr_box(image_url, box):
 
 		donation.insert(ignore_permissions=True)
 		donation_id = donation.name
+
+		if center_x is not None:
+			update_person_tagged_box(donation.takti, image_url, center_x, center_y, width, height, 'Donation', donation_id)
+			for d_row in donation.list_of_donors:
+				if d_row.donor_name != donation.takti:
+					update_person_tagged_box(d_row.donor_name, image_url, center_x, center_y, width, height, 'Donation', donation_id)
 
 	return {
 		'type': 'donation',
@@ -647,6 +680,60 @@ def update_ocr_boxes(page_id, boxes):
 		boxes = frappe.parse_json(boxes)
 	
 	doc = frappe.get_doc("Pdf page", page_id)
+	
+	# Detect deleted verified boxes for cleanup
+	old_refs = []
+	for old_box in doc.ocr_boxes or []:
+		if old_box.status == 'verified':
+			old_refs.append({
+				'donation': old_box.reference_donation,
+				'person': old_box.reference_person,
+				'entry_type': old_box.entry_type
+			})
+
+	new_donations = set()
+	new_persons = set()
+	for box in boxes:
+		status = box.get("status") or "original"
+		if status == 'verified':
+			fields = box.get("fields") or {}
+			if fields.get("reference_donation"):
+				new_donations.add(fields.get("reference_donation"))
+			if fields.get("reference_person"):
+				new_persons.add(fields.get("reference_person"))
+
+	for ref in old_refs:
+		if ref['donation'] and ref['donation'] not in new_donations:
+			if frappe.db.exists('Donation', ref['donation']):
+				try:
+					donation_doc = frappe.get_doc('Donation', ref['donation'])
+					old_donor_id = donation_doc.takti
+					old_village_name = donation_doc.village
+					old_haste_ids = []
+					if hasattr(donation_doc, 'list_of_donors') and donation_doc.list_of_donors:
+						old_haste_ids = [row.donor_name for row in donation_doc.list_of_donors if row.donor_name]
+					
+					remove_person_tagged_box('Donation', ref['donation'])
+					frappe.delete_doc('Donation', ref['donation'], ignore_permissions=True)
+					
+					if old_donor_id:
+						cleanup_person_if_orphaned(old_donor_id)
+					for old_haste_id in old_haste_ids:
+						cleanup_person_if_orphaned(old_haste_id)
+					if old_village_name:
+						cleanup_village_if_orphaned(old_village_name)
+				except Exception:
+					pass
+
+		if ref['person'] and ref['person'] not in new_persons:
+			if ref['entry_type'] == 'collector':
+				try:
+					location_name = extract_location_from_image_url(doc.image_url)
+					remove_person_tagged_box('Collector', f"{ref['person']}:{location_name}")
+					cleanup_person_if_orphaned(ref['person'])
+				except Exception:
+					pass
+
 	doc.set("ocr_boxes", [])
 	
 	for box in boxes:
@@ -874,3 +961,55 @@ def parse_amount_english(amount_text):
 	if not digits:
 		return None
 	return int(''.join(digits))
+
+
+def update_person_tagged_box(person_name, image_url, center_x, center_y, width, height, reference_doctype, reference_name):
+	if not person_name or not frappe.db.exists('Person', person_name):
+		return
+	if not image_url:
+		return
+
+	person = frappe.get_doc('Person', person_name)
+	
+	existing_row = None
+	for row in person.tagged_boxes or []:
+		if row.reference_doctype == reference_doctype and row.reference_name == reference_name:
+			existing_row = row
+			break
+		if row.image_url == image_url and abs((row.center_x or 0) - (center_x or 0)) < 0.001 and abs((row.center_y or 0) - (center_y or 0)) < 0.001:
+			existing_row = row
+			break
+
+	if existing_row:
+		existing_row.image_url = image_url
+		existing_row.center_x = center_x
+		existing_row.center_y = center_y
+		existing_row.width = width
+		existing_row.height = height
+	else:
+		person.append('tagged_boxes', {
+			'image_url': image_url,
+			'center_x': center_x,
+			'center_y': center_y,
+			'width': width,
+			'height': height,
+			'reference_doctype': reference_doctype,
+			'reference_name': reference_name
+		})
+	person.save(ignore_permissions=True)
+
+
+def remove_person_tagged_box(reference_doctype, reference_name):
+	rows = frappe.db.get_all('Person Tagged Box', filters={
+		'parenttype': 'Person',
+		'reference_doctype': reference_doctype,
+		'reference_name': reference_name
+	}, fields=['parent'])
+	
+	for r in rows:
+		person = frappe.get_doc('Person', r.parent)
+		new_tagged_boxes = [row for row in person.tagged_boxes if not (row.reference_doctype == reference_doctype and row.reference_name == reference_name)]
+		if len(new_tagged_boxes) != len(person.tagged_boxes):
+			person.set('tagged_boxes', new_tagged_boxes)
+			person.save(ignore_permissions=True)
+

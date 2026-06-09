@@ -16,7 +16,10 @@
   "village_english_name",
   "is_collector",
   "section_break_mstn",
-  "collector_locations"
+  "collector_locations",
+  "validation_section",
+  "ocr_preview",
+  "tagged_boxes"
  ],
  "fields": [
   {
@@ -84,6 +87,22 @@
    "fieldname": "profile",
    "fieldtype": "Attach Image",
    "label": "Profile"
+  },
+  {
+   "fieldname": "validation_section",
+   "fieldtype": "Section Break",
+   "label": "Validation Images"
+  },
+  {
+   "fieldname": "ocr_preview",
+   "fieldtype": "HTML",
+   "label": "OCR Bounding Box Previews"
+  },
+  {
+   "fieldname": "tagged_boxes",
+   "fieldtype": "Table",
+   "label": "Tagged Boxes",
+   "options": "Person Tagged Box"
   }
  ],
  "grid_page_length": 50,
