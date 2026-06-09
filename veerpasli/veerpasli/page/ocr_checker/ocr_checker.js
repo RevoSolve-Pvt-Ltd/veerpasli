@@ -449,6 +449,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             });
             html += '<button id="ocrCheckerAssignToken" class="btn btn-sm btn-success ms-2">Assign</button>';
             html += '<button id="ocrCheckerClearTokenSelection" class="btn btn-sm btn-secondary">Clear</button>';
+            html += '<button id="ocrCheckerResetAssignments" class="btn btn-sm btn-danger ms-auto">Redo / Reset</button>';
             html += '</div>';
 
             html += '<div class="mb-3"><strong>Entry type</strong></div>';
@@ -596,6 +597,18 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             dialog.fields_dict.content.$wrapper.find('#ocrCheckerClearTokenSelection').on('click', function () {
                 selectedTokenIds.clear();
                 redraw();
+            });
+            dialog.fields_dict.content.$wrapper.find('#ocrCheckerResetAssignments').on('click', function () {
+                fieldNames.forEach(function (field) {
+                    box.fields[field] = '';
+                });
+                tokens = tokenizeText(box.text || '');
+                selectedTokenIds.clear();
+                activeField = null;
+                redraw();
+                renderBoxes();
+                renderControls();
+                setStatus('Reset all assignments for this box.', 'text-muted');
             });
         }
 
