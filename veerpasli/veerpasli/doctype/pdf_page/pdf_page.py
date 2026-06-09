@@ -342,10 +342,19 @@ def process_ocr_box(image_url, box):
 	village_doc = get_or_create_village(village_name or 'Unknown Village')
 	donation_id = ref_donation_id
 
+	# Parse hastes from fields
+	hastes_input = fields.get('hastes') or []
+	haste_names = [h.get('name').strip() for h in hastes_input if h and h.get('name')]
+
 	if donation_id and frappe.db.exists('Donation', donation_id):
 		donation = frappe.get_doc('Donation', donation_id)
 		old_donor_id = donation.takti
 		old_village_name = donation.village
+
+		# Get list of old haste person IDs from the existing child table before we clear it
+		old_haste_ids = []
+		if hasattr(donation, 'list_of_donors') and donation.list_of_donors:
+			old_haste_ids = [row.donor_name for row in donation.list_of_donors if row.donor_name]
 
 		# --- PERSON CORRECTION ---
 		if old_donor_id and frappe.db.exists('Person', old_donor_id):
@@ -377,14 +386,36 @@ def process_ocr_box(image_url, box):
 			donor = get_or_create_person(name, village_doc, phone or '', is_collector=False)
 			donor_id = donor.name
 
-		# NOTE: We capture old_village_name before updating, then clean up AFTER saving.
 		# Reload the donation to get a fresh state (rename_doc may have auto-updated takti in DB)
 		donation = frappe.get_doc('Donation', donation_id)
 
-		# Update Donation
+		# Clear and rebuild child table
+		donation.set('list_of_donors', [])
+		total_amount_english = parse_amount_english(amount)
+		hastes_data = []
+
+		if not haste_names:
+			donation.append('list_of_donors', {
+				'donor_name': donor_id,
+				'amount': total_amount_english
+			})
+		else:
+			distributed_amounts = distribute_amount_equally(total_amount_english, len(haste_names))
+			for idx, haste_name in enumerate(haste_names):
+				haste_person = get_or_create_person(haste_name, village_doc, '', is_collector=False)
+				donation.append('list_of_donors', {
+					'donor_name': haste_person.name,
+					'amount': distributed_amounts[idx]
+				})
+				hastes_data.append({
+					'name': haste_name,
+					'reference_person': haste_person.name
+				})
+
+		# Update Donation fields
 		donation.takti = donor_id
 		donation.amount_gujarati = amount
-		donation.amount_english = parse_amount_english(amount)
+		donation.amount_english = total_amount_english
 		donation.village = village_doc.name
 		donation.location = location_doc.name
 
@@ -397,6 +428,10 @@ def process_ocr_box(image_url, box):
 		# NOW clean up the old village (donation is saved, so DB references are correct)
 		if old_village_name and old_village_name != village_doc.name:
 			cleanup_village_if_orphaned(old_village_name)
+
+		# NOW clean up old Haste persons that are no longer referenced
+		for old_haste_id in old_haste_ids:
+			cleanup_person_if_orphaned(old_haste_id)
 	else:
 		donor = get_or_create_person(
 			name,
@@ -411,22 +446,46 @@ def process_ocr_box(image_url, box):
 				f"No collector person found for location {location_doc.name}. Create a Collector entry first."
 			)
 
+		total_amount_english = parse_amount_english(amount)
+		hastes_data = []
+
 		donation = frappe.get_doc({
 			'doctype': 'Donation',
-			'takti': donor.name,
+			'takti': donor_id,
 			'amount_gujarati': amount,
-			'amount_english': parse_amount_english(amount),
+			'amount_english': total_amount_english,
 			'village': village_doc.name,
 			'location': location_doc.name,
-			'collector': collector.name
+			'collector': collector.name,
+			'list_of_donors': []
 		})
+
+		if not haste_names:
+			donation.append('list_of_donors', {
+				'donor_name': donor_id,
+				'amount': total_amount_english
+			})
+		else:
+			distributed_amounts = distribute_amount_equally(total_amount_english, len(haste_names))
+			for idx, haste_name in enumerate(haste_names):
+				haste_person = get_or_create_person(haste_name, village_doc, '', is_collector=False)
+				donation.append('list_of_donors', {
+					'donor_name': haste_person.name,
+					'amount': distributed_amounts[idx]
+				})
+				hastes_data.append({
+					'name': haste_name,
+					'reference_person': haste_person.name
+				})
+
 		donation.insert(ignore_permissions=True)
 		donation_id = donation.name
 
 	return {
 		'type': 'donation',
 		'donation': donation_id,
-		'person': donor_id
+		'person': donor_id,
+		'hastes': hastes_data
 	}
 
 
@@ -570,7 +629,8 @@ def get_ocr_boxes(page_id):
 				"phone": row.phone or "",
 				"entryType": row.entry_type or "",
 				"reference_person": row.reference_person or "",
-				"reference_donation": row.reference_donation or ""
+				"reference_donation": row.reference_donation or "",
+				"hastes": frappe.parse_json(row.hastes) if row.hastes else []
 			}
 		}
 		boxes.append(box_dict)
@@ -605,7 +665,8 @@ def update_ocr_boxes(page_id, boxes):
 			"entry_type": fields.get("entryType") or fields.get("entry_type"),
 			"status": box.get("status") or "original",
 			"reference_person": fields.get("reference_person"),
-			"reference_donation": fields.get("reference_donation")
+			"reference_donation": fields.get("reference_donation"),
+			"hastes": frappe.as_json(fields.get("hastes") or [])
 		})
 		
 	doc.save(ignore_permissions=True)
@@ -714,6 +775,38 @@ def handle_village_correction(old_village_name, new_village_name):
 			return get_or_create_village(new_village_name)
 	else:
 		return get_or_create_village(new_village_name)
+
+
+def distribute_amount_equally(total_amount, num_parts):
+	if num_parts <= 0:
+		return []
+	base_amount = total_amount // num_parts
+	remainder = total_amount % num_parts
+	amounts = [base_amount] * num_parts
+	for i in range(remainder):
+		amounts[i] += 1
+	return amounts
+
+
+def get_person_reference_count(person_id):
+	takti_count = frappe.db.count('Donation', {'takti': person_id})
+	collector_count = frappe.db.count('Donation', {'collector': person_id})
+	donor_table_count = frappe.db.count('Donor', {'donor_name': person_id})
+	return takti_count + collector_count + donor_table_count
+
+
+def cleanup_person_if_orphaned(person_id):
+	if not person_id or not frappe.db.exists('Person', person_id):
+		return
+	if get_person_reference_count(person_id) == 0:
+		try:
+			person_doc = frappe.get_doc('Person', person_id)
+			old_village_name = person_doc.village_gujarati_name
+			frappe.delete_doc('Person', person_id, ignore_permissions=True)
+			if old_village_name:
+				cleanup_village_if_orphaned(old_village_name)
+		except Exception:
+			pass
 
 
 def get_or_create_person(name, village_doc, mobile_number, is_collector=False, location_name=None):

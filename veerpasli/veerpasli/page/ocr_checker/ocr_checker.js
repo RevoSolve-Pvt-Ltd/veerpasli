@@ -147,6 +147,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             .ocr-token-village.ocr-token-selected { background-color: #6610f2; color: #fff; border-color: #6610f2; }
             .ocr-token-amount.ocr-token-selected { background-color: #fd7e14; color: #fff; border-color: #fd7e14; }
             .ocr-token-phone.ocr-token-selected { background-color: #198754; color: #fff; border-color: #198754; }
+            [class*="ocr-token-haste_"].ocr-token-selected { background-color: #ffc107; color: #000; border-color: #ffc107; }
             #ocrCheckerFrame { -webkit-overflow-scrolling: touch; }
             #ocrCheckerFrame, #ocrCheckerFrame * { touch-action: none; -webkit-user-select: none; user-select: none; }
             #ocrCheckerOverlay { pointer-events: none; }
@@ -327,14 +328,25 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
     }
 
     function renderFieldLabels(box, $box) {
-        fieldNames.forEach(function (field, index) {
+        var labelIndex = 0;
+        fieldNames.forEach(function (field) {
             if (box.fields[field]) {
                 var label = field.charAt(0).toUpperCase() + field.slice(1) + ': ' + box.fields[field];
-                var top = 4 + index * 20;
+                var top = 4 + labelIndex * 20;
+                var $label = $('<div class="ocr-field-label"></div>').text(label).css({ top: top + 'px' });
+                $box.append($label);
+                labelIndex++;
+            }
+        });
+        if (box.fields.hastes && box.fields.hastes.length > 0) {
+            var hasteNames = box.fields.hastes.map(function (h) { return h.name; }).filter(Boolean).join(', ');
+            if (hasteNames) {
+                var label = 'Haste: ' + hasteNames;
+                var top = 4 + labelIndex * 20;
                 var $label = $('<div class="ocr-field-label"></div>').text(label).css({ top: top + 'px' });
                 $box.append($label);
             }
-        });
+        }
     }
     function openImageCropperForCollector(personName, imageUrl) {
         var fu = new frappe.ui.FileUploader({
@@ -391,7 +403,62 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
     }
 
     function openBoxEditorModal(box) {
+        box.fields.hastes = box.fields.hastes || [];
         var tokens = tokenizeText(box.text || '');
+        
+        var currentOffset = 0;
+        tokens.forEach(function (token) {
+            token.start = currentOffset;
+            token.end = currentOffset + token.value.length;
+            currentOffset = token.end;
+        });
+
+        var assignedTokenIndices = {};
+        var matchedRanges = [];
+        var queries = [];
+        if (box.fields.name) queries.push({ key: 'name', value: box.fields.name.trim() });
+        if (box.fields.village) queries.push({ key: 'village', value: box.fields.village.trim() });
+        if (box.fields.amount) queries.push({ key: 'amount', value: box.fields.amount.trim() });
+        if (box.fields.phone) queries.push({ key: 'phone', value: box.fields.phone.trim() });
+        (box.fields.hastes || []).forEach(function (h, idx) {
+            if (h.name) {
+                queries.push({ key: 'haste_' + idx, value: h.name.trim() });
+            }
+        });
+
+        queries.sort(function (a, b) {
+            return b.value.length - a.value.length;
+        });
+
+        queries.forEach(function (q) {
+            var val = q.value;
+            var pos = 0;
+            while (true) {
+                var idx = (box.text || '').indexOf(val, pos);
+                if (idx === -1) break;
+                
+                var start = idx;
+                var end = idx + val.length;
+                
+                var overlaps = matchedRanges.some(function (r) {
+                    return (start < r.end && end > r.start);
+                });
+                
+                if (!overlaps) {
+                    matchedRanges.push({ start: start, end: end });
+                    var tokenIndices = [];
+                    tokens.forEach(function (token, tIdx) {
+                        if (token.start >= start && token.end <= end + 1) {
+                            tokenIndices.push(tIdx);
+                        }
+                    });
+                    assignedTokenIndices[q.key] = tokenIndices;
+                    break;
+                }
+                pos = idx + 1;
+            }
+        });
+
         var activeField = null;
         var selectedTokenIds = new Set();
         var selectedEntryType = box.fields.entryType || 'Donation';
@@ -406,16 +473,10 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             html += '<div class="mb-3"><strong>Combined box text</strong></div>';
 
             var assignedTokenSet = new Set();
-            var textFields = ['name', 'village', 'amount', 'phone'];
-            textFields.forEach(function (field) {
-                if (box.fields[field]) {
-                    var fieldValue = box.fields[field];
-                    for (var i = 0; i < tokens.length; i++) {
-                        if (fieldValue.indexOf(tokens[i].value.trim()) !== -1) {
-                            assignedTokenSet.add(i);
-                        }
-                    }
-                }
+            Object.keys(assignedTokenIndices).forEach(function (key) {
+                (assignedTokenIndices[key] || []).forEach(function (idx) {
+                    assignedTokenSet.add(idx);
+                });
             });
             var remainingTokens = tokens.filter(function (token, index) {
                 return !assignedTokenSet.has(index);
@@ -448,6 +509,20 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                 }
                 html += '<button type="button" class="ocr-field-select ' + buttonClass + '" data-field="' + field + '">' + field.charAt(0).toUpperCase() + field.slice(1) + '</button>';
             });
+
+            if (selectedEntryType === 'Donation') {
+                (box.fields.hastes || []).forEach(function (hasteObj, i) {
+                    var fieldKey = 'haste_' + i;
+                    var buttonClass = 'btn btn-sm btn-outline-warning';
+                    if (activeField === fieldKey) {
+                        buttonClass = 'btn btn-sm btn-warning';
+                    }
+                    var label = 'Haste ' + (i + 1);
+                    html += '<button type="button" class="ocr-field-select ' + buttonClass + '" data-field="' + fieldKey + '">' + label + '</button>';
+                });
+                html += '<button type="button" id="ocrCheckerAddHaste" class="btn btn-sm btn-outline-info">+ Add Haste</button>';
+            }
+
             html += '<button id="ocrCheckerAssignToken" class="btn btn-sm btn-success ms-2">Assign</button>';
             html += '<button id="ocrCheckerClearTokenSelection" class="btn btn-sm btn-secondary">Clear</button>';
             html += '<button id="ocrCheckerResetAssignments" class="btn btn-sm btn-danger ms-auto">Redo / Reset</button>';
@@ -468,6 +543,12 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             fieldNames.forEach(function (field) {
                 html += '<div class="mb-1"><strong>' + field.charAt(0).toUpperCase() + field.slice(1) + ':</strong> ' + (box.fields[field] ? '<code>' + frappe.utils.escape_html(box.fields[field]) + '</code>' : '<span class="text-muted">not set</span>') + '</div>';
             });
+            if (selectedEntryType === 'Donation' && box.fields.hastes && box.fields.hastes.length > 0) {
+                box.fields.hastes.forEach(function (hasteObj, i) {
+                    var valueHtml = hasteObj.name ? '<code>' + frappe.utils.escape_html(hasteObj.name) + '</code>' : '<span class="text-muted">not set</span>';
+                    html += '<div class="mb-1"><strong>Haste ' + (i + 1) + ':</strong> ' + valueHtml + ' <button type="button" class="btn btn-xs btn-link text-danger ocr-remove-haste" data-index="' + i + '" style="padding: 0; margin-left: 5px;">[Remove]</button></div>';
+                });
+            }
             html += '</div>';
             return html;
         }
@@ -530,6 +611,9 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                         if (r.message) {
                             box.fields.reference_person = r.message.person || '';
                             box.fields.reference_donation = r.message.donation || '';
+                            if (r.message.hastes) {
+                                box.fields.hastes = r.message.hastes;
+                            }
                         }
                         saveVerifiedBoxToJson(box);
                         renderBoxes();
@@ -586,11 +670,14 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                     return token.value;
                 }).join('').trim();
                 var assignedField = activeField;
-                box.fields[assignedField] = assignedValue;
+                if (assignedField.startsWith('haste_')) {
+                    var idx = parseInt(assignedField.split('_')[1], 10);
+                    box.fields.hastes[idx].name = assignedValue;
+                } else {
+                    box.fields[assignedField] = assignedValue;
+                }
 
-                tokens = tokens.filter(function (token, index) {
-                    return !selectedTokenIds.has(index);
-                });
+                assignedTokenIndices[assignedField] = Array.from(selectedTokenIds);
 
                 activeField = null;
                 selectedTokenIds.clear();
@@ -607,13 +694,51 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                 fieldNames.forEach(function (field) {
                     box.fields[field] = '';
                 });
-                tokens = tokenizeText(box.text || '');
+                box.fields.hastes = [];
+                assignedTokenIndices = {};
                 selectedTokenIds.clear();
                 activeField = null;
                 redraw();
                 renderBoxes();
                 renderControls();
                 setStatus('Reset all assignments for this box.', 'text-muted');
+            });
+            dialog.fields_dict.content.$wrapper.find('#ocrCheckerAddHaste').on('click', function () {
+                if (!box.fields.hastes) {
+                    box.fields.hastes = [];
+                }
+                box.fields.hastes.push({ name: '', reference_person: '' });
+                redraw();
+            });
+            dialog.fields_dict.content.$wrapper.find('.ocr-remove-haste').on('click', function () {
+                var index = parseInt($(this).attr('data-index'), 10);
+                box.fields.hastes.splice(index, 1);
+                
+                delete assignedTokenIndices['haste_' + index];
+                var newAssigned = {};
+                Object.keys(assignedTokenIndices).forEach(function (key) {
+                    if (key.startsWith('haste_')) {
+                        var idx = parseInt(key.split('_')[1], 10);
+                        if (idx > index) {
+                            newAssigned['haste_' + (idx - 1)] = assignedTokenIndices[key];
+                        } else {
+                            newAssigned[key] = assignedTokenIndices[key];
+                        }
+                    } else {
+                        newAssigned[key] = assignedTokenIndices[key];
+                    }
+                });
+                assignedTokenIndices = newAssigned;
+
+                if (activeField === 'haste_' + index) {
+                    activeField = null;
+                } else if (activeField && activeField.startsWith('haste_')) {
+                    var actIdx = parseInt(activeField.split('_')[1], 10);
+                    if (actIdx > index) {
+                        activeField = 'haste_' + (actIdx - 1);
+                    }
+                }
+                redraw();
             });
         }
 

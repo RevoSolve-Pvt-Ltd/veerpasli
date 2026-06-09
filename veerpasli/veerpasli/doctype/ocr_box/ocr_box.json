@@ -18,7 +18,8 @@
   "entry_type",
   "status",
   "reference_person",
-  "reference_donation"
+  "reference_donation",
+  "hastes"
  ],
  "fields": [
   {
@@ -95,6 +96,11 @@
    "fieldtype": "Link",
    "label": "Reference Donation",
    "options": "Donation"
+  },
+  {
+   "fieldname": "hastes",
+   "fieldtype": "Small Text",
+   "label": "Hastes"
   }
  ],
  "grid_page_length": 50,

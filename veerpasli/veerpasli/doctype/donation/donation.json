@@ -6,7 +6,6 @@
  "engine": "InnoDB",
  "field_order": [
   "donor_information_section",
-  "haste",
   "takti",
   "column_break_chxz",
   "amount_gujarati",
@@ -21,13 +20,6 @@
   "list_of_donors"
  ],
  "fields": [
-  {
-   "fieldname": "haste",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Haste",
-   "options": "Person"
-  },
   {
    "fieldname": "takti",
    "fieldtype": "Link",
