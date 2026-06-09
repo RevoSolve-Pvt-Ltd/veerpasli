@@ -140,12 +140,13 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                  z-index: 20;
             }
             .ocr-checker-field { margin-bottom: 1rem; }
-            .ocr-token { display: inline-block; padding: 0.12rem 0.25rem; margin: 0 0.1rem 0.1rem 0; border-radius: 3px; transition: background-color 0.2s ease, color 0.2s ease; cursor: pointer; }
-            .ocr-token-selected { background: rgba(0, 0, 0, 0.65); color: #fff; border: 1px solid transparent; padding: 0.08rem 0.18rem; border-radius: 3px; }
-            .ocr-token-name.ocr-token-selected { background-color: #0d6efd; }
-            .ocr-token-village.ocr-token-selected { background-color: #6610f2; }
-            .ocr-token-amount.ocr-token-selected { background-color: #fd7e14; }
-            .ocr-token-phone.ocr-token-selected { background-color: #198754; }
+            .ocr-token { display: inline-block; padding: 0.25rem 0.5rem; margin: 0.2rem; border: 1px solid #dee2e6; background-color: #f8f9fa; border-radius: 4px; transition: all 0.15s ease-in-out; cursor: pointer; font-family: monospace; font-size: 0.95rem; }
+            .ocr-token:hover { background-color: #e9ecef; border-color: #adb5bd; }
+            .ocr-token-selected { background: #212529; color: #fff; border-color: #212529; }
+            .ocr-token-name.ocr-token-selected { background-color: #0d6efd; color: #fff; border-color: #0d6efd; }
+            .ocr-token-village.ocr-token-selected { background-color: #6610f2; color: #fff; border-color: #6610f2; }
+            .ocr-token-amount.ocr-token-selected { background-color: #fd7e14; color: #fff; border-color: #fd7e14; }
+            .ocr-token-phone.ocr-token-selected { background-color: #198754; color: #fff; border-color: #198754; }
             #ocrCheckerFrame { -webkit-overflow-scrolling: touch; }
             #ocrCheckerFrame, #ocrCheckerFrame * { touch-action: none; -webkit-user-select: none; user-select: none; }
             #ocrCheckerOverlay { pointer-events: none; }
@@ -203,15 +204,28 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
         return box.fields.name && box.fields.village && (box.fields.amount || box.fields.phone);
     }
 
-    function tokenizeText(text) {
+    function tokenizeText(text, splitByHyphen) {
         var tokens = [];
         var regex = /(\S+\s*)/g;
         var match;
         while ((match = regex.exec(text))) {
-            tokens.push({
-                value: match[1],
-                label: match[1].trim()
-            });
+            var word = match[1];
+            if (splitByHyphen) {
+                var parts = word.split(/([-—–])/);
+                parts.forEach(function (part) {
+                    if (part !== '') {
+                        tokens.push({
+                            value: part,
+                            label: part.trim()
+                        });
+                    }
+                });
+            } else {
+                tokens.push({
+                    value: word,
+                    label: word.trim()
+                });
+            }
         }
         return tokens;
     }
@@ -592,12 +606,22 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
     }
 
     function openSplitModal(box) {
-        var tokens = tokenizeText(box.text || '');
+        var splitByHyphen = false;
+        var tokens = tokenizeText(box.text || '', splitByHyphen);
         var selectedTokenIds = new Set();
 
         function renderModalContent() {
             var html = '<div class="ocr-checker-modal">';
             html += '<div class="mb-3"><strong>Split box text</strong></div>';
+            
+            // Switch for hyphen/mdash splitting
+            html += '<div class="form-check form-switch mb-3" style="padding-left: 2.5em; min-height: 24px;">';
+            html += '  <input class="form-check-input" type="checkbox" id="ocrSplitByHyphenMdash"' + (splitByHyphen ? ' checked' : '') + ' style="cursor: pointer; width: 2.5em; height: 1.25em;">';
+            html += '  <label class="form-check-label" for="ocrSplitByHyphenMdash" style="cursor: pointer; user-select: none; font-weight: 500; margin-left: 0.5rem; line-height: 1.25em;">';
+            html += '    Split words by hyphen/mdash (e.g. abcd-efgh &rarr; abcd, -, efgh)';
+            html += '  </label>';
+            html += '</div>';
+
             html += '<div class="ocr-token-container mb-3" style="padding: 0.75rem; border: 1px solid #dee2e6; border-radius: 4px; background: #fff; max-height: 260px; overflow-y: auto;">';
             tokens.forEach(function (token, index) {
                 var cssClass = 'ocr-token';
@@ -625,6 +649,15 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
 
         function redraw() {
             dialog.fields_dict.content.$wrapper.html(renderModalContent());
+            
+            // Bind checkbox change event
+            dialog.fields_dict.content.$wrapper.find('#ocrSplitByHyphenMdash').on('change', function () {
+                splitByHyphen = $(this).is(':checked');
+                tokens = tokenizeText(box.text || '', splitByHyphen);
+                selectedTokenIds.clear();
+                redraw();
+            });
+
             dialog.fields_dict.content.$wrapper.find('.ocr-token').on('click', function () {
                 var index = parseInt($(this).attr('data-token-index'), 10);
                 if (selectedTokenIds.has(index)) {
