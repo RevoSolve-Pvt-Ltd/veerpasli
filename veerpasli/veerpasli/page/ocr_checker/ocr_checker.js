@@ -406,8 +406,9 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             html += '<div class="mb-3"><strong>Combined box text</strong></div>';
 
             var assignedTokenSet = new Set();
-            for (var field in box.fields) {
-                if (field !== 'entryType' && box.fields[field]) {
+            var textFields = ['name', 'village', 'amount', 'phone'];
+            textFields.forEach(function (field) {
+                if (box.fields[field]) {
                     var fieldValue = box.fields[field];
                     for (var i = 0; i < tokens.length; i++) {
                         if (fieldValue.indexOf(tokens[i].value.trim()) !== -1) {
@@ -415,7 +416,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                         }
                     }
                 }
-            }
+            });
             var remainingTokens = tokens.filter(function (token, index) {
                 return !assignedTokenSet.has(index);
             });
@@ -526,6 +527,10 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                     } else {
                         box.status = 'verified';
                         box.fields.entryType = selectedEntryType;
+                        if (r.message) {
+                            box.fields.reference_person = r.message.person || '';
+                            box.fields.reference_donation = r.message.donation || '';
+                        }
                         saveVerifiedBoxToJson(box);
                         renderBoxes();
                         renderControls();

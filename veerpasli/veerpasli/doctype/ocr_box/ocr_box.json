@@ -16,7 +16,9 @@
   "amount",
   "phone",
   "entry_type",
-  "status"
+  "status",
+  "reference_person",
+  "reference_donation"
  ],
  "fields": [
   {
@@ -81,6 +83,18 @@
    "in_list_view": 1,
    "label": "Status",
    "options": "original\nmerged\nverified"
+  },
+  {
+   "fieldname": "reference_person",
+   "fieldtype": "Link",
+   "label": "Reference Person",
+   "options": "Person"
+  },
+  {
+   "fieldname": "reference_donation",
+   "fieldtype": "Link",
+   "label": "Reference Donation",
+   "options": "Donation"
   }
  ],
  "grid_page_length": 50,

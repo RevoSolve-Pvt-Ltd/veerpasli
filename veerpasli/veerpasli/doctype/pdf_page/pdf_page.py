@@ -238,6 +238,8 @@ def process_ocr_box(image_url, box):
 	village_name = (fields.get('village') or '').strip()
 	amount = (fields.get('amount') or '').strip()
 	phone = (fields.get('phone') or '').strip()
+	ref_person_id = fields.get('reference_person')
+	ref_donation_id = fields.get('reference_donation')
 
 	if entry_type not in ('collector', 'donation'):
 		frappe.throw("Entry type must be Collector or Donation.")
@@ -255,53 +257,176 @@ def process_ocr_box(image_url, box):
 		if not village_name:
 			frappe.throw("Village is required for Collector.")
 
-		village_doc = get_or_create_village(village_name)
+		# Clean up previous donation if entry type changed
+		if ref_donation_id and frappe.db.exists('Donation', ref_donation_id):
+			try:
+				donation_doc = frappe.get_doc('Donation', ref_donation_id)
+				old_donor_id = donation_doc.takti
+				old_village_name = donation_doc.village
+				frappe.delete_doc('Donation', ref_donation_id, ignore_permissions=True)
+				if old_donor_id and frappe.db.exists('Person', old_donor_id):
+					if frappe.db.count('Donation', {'takti': old_donor_id}) == 0:
+						frappe.delete_doc('Person', old_donor_id, ignore_permissions=True)
+				if old_village_name:
+					handle_village_correction(old_village_name, '')
+			except Exception:
+				pass
+			ref_donation_id = None
 
-		person = get_or_create_person(
-			name,
-			village_doc,
-			phone or '',
-			is_collector=True,
-			location_name=location_doc.name
-		)
+		person_id = ref_person_id
+
+		if person_id and frappe.db.exists('Person', person_id):
+			# Step 1: Rename primary key first (also syncs gujarati_fullname via update_autoname_field)
+			if person_id != name:
+				try:
+					target_exists = frappe.db.exists('Person', name)
+					person_id = frappe.rename_doc('Person', person_id, name, force=True, merge=target_exists, ignore_permissions=True)
+				except Exception:
+					frappe.log_error(frappe.get_traceback(), 'Collector rename failed in process_ocr_box')
+
+			# Step 2: Get the correct village (create if needed) and read the old one for cleanup
+			old_person_village = frappe.db.get_value('Person', person_id, 'village_gujarati_name') or ''
+			village_doc = get_or_create_village(village_name)
+
+			# Step 3: Update all remaining fields directly in DB (safe, bypasses unique constraint on autoname field)
+			current_mobile = frappe.db.get_value('Person', person_id, 'mobile_number') or ''
+			frappe.db.set_value('Person', person_id, {
+				'gujarati_fullname': name,
+				'english_fullname': name,
+				'mobile_number': normalize_mobile_number(phone) if phone else current_mobile,
+				'village_gujarati_name': village_doc.name,
+				'village_english_name': village_doc.english_name,
+				'is_collector': 'true',
+			})
+
+			# Step 4: Clean up the old village AFTER the person is updated in DB
+			# (so person_count = 0 for old village, allowing safe deletion)
+			if old_person_village and old_person_village != village_doc.name:
+				cleanup_village_if_orphaned(old_person_village)
+
+			# NOTE: collector_locations is intentionally NOT touched here.
+			# Location is derived from the image filename at creation time only.
+		else:
+			village_doc = get_or_create_village(village_name)
+			person = get_or_create_person(
+				name,
+				village_doc,
+				phone or '',
+				is_collector=True,
+				location_name=location_doc.name
+			)
+			person_id = person.name
 
 		return {
 			'type': 'collector',
-			'person': person.name
+			'person': person_id,
+			'donation': None
 		}
 
 	if not amount:
 		frappe.throw("Amount is required for Donation.")
 
+	# Clean up previous collector if entry type changed
+	if ref_person_id and frappe.db.exists('Person', ref_person_id):
+		try:
+			if frappe.db.count('Donation', {'takti': ref_person_id}) == 0 and frappe.db.count('Donation', {'collector': ref_person_id}) == 0:
+				person_doc = frappe.get_doc('Person', ref_person_id)
+				old_village_name = person_doc.village_gujarati_name
+				frappe.delete_doc('Person', ref_person_id, ignore_permissions=True)
+				if old_village_name:
+					handle_village_correction(old_village_name, '')
+		except Exception:
+			pass
+		ref_person_id = None
+
 	village_doc = get_or_create_village(village_name or 'Unknown Village')
+	donation_id = ref_donation_id
 
-	donor = get_or_create_person(
-		name,
-		village_doc,
-		phone or '',
-		is_collector=False
-	)
+	if donation_id and frappe.db.exists('Donation', donation_id):
+		donation = frappe.get_doc('Donation', donation_id)
+		old_donor_id = donation.takti
+		old_village_name = donation.village
 
-	collector = find_collector_for_location(location_doc.name)
-	if not collector:
-		frappe.throw(
-			f"No collector person found for location {location_doc.name}. Create a Collector entry first."
+		# --- PERSON CORRECTION ---
+		if old_donor_id and frappe.db.exists('Person', old_donor_id):
+			donation_count_for_donor = frappe.db.count('Donation', {'takti': old_donor_id})
+			if donation_count_for_donor <= 1:
+				# Step 1: Rename primary key first (also syncs gujarati_fullname via update_autoname_field)
+				donor_id = old_donor_id
+				if old_donor_id != name:
+					try:
+						target_exists = frappe.db.exists('Person', name)
+						donor_id = frappe.rename_doc('Person', old_donor_id, name, force=True, merge=target_exists, ignore_permissions=True)
+					except Exception:
+						frappe.log_error(frappe.get_traceback(), 'Person rename failed in process_ocr_box')
+
+				# Step 2: Update all remaining fields directly in DB (bypasses unique constraint on autoname field)
+				current_mobile = frappe.db.get_value('Person', donor_id, 'mobile_number') or ''
+				frappe.db.set_value('Person', donor_id, {
+					'gujarati_fullname': name,
+					'english_fullname': name,
+					'mobile_number': normalize_mobile_number(phone) if phone else current_mobile,
+					'village_gujarati_name': village_doc.name,
+					'village_english_name': village_doc.english_name,
+				})
+			else:
+				# Person is shared — leave it, find/create the correct one
+				donor = get_or_create_person(name, village_doc, phone or '', is_collector=False)
+				donor_id = donor.name
+		else:
+			donor = get_or_create_person(name, village_doc, phone or '', is_collector=False)
+			donor_id = donor.name
+
+		# NOTE: We capture old_village_name before updating, then clean up AFTER saving.
+		# Reload the donation to get a fresh state (rename_doc may have auto-updated takti in DB)
+		donation = frappe.get_doc('Donation', donation_id)
+
+		# Update Donation
+		donation.takti = donor_id
+		donation.amount_gujarati = amount
+		donation.amount_english = parse_amount_english(amount)
+		donation.village = village_doc.name
+		donation.location = location_doc.name
+
+		collector = find_collector_for_location(location_doc.name)
+		if collector:
+			donation.collector = collector.name
+
+		donation.save(ignore_permissions=True)
+
+		# NOW clean up the old village (donation is saved, so DB references are correct)
+		if old_village_name and old_village_name != village_doc.name:
+			cleanup_village_if_orphaned(old_village_name)
+	else:
+		donor = get_or_create_person(
+			name,
+			village_doc,
+			phone or '',
+			is_collector=False
 		)
+		donor_id = donor.name
+		collector = find_collector_for_location(location_doc.name)
+		if not collector:
+			frappe.throw(
+				f"No collector person found for location {location_doc.name}. Create a Collector entry first."
+			)
 
-	donation = frappe.get_doc({
-		'doctype': 'Donation',
-		'takti': donor.name,
-		'amount_gujarati': amount,
-		'amount_english': parse_amount_english(amount),
-		'village': village_doc.name,
-		'location': location_doc.name,
-		'collector': collector.name
-	})
-	donation.insert(ignore_permissions=True)
+		donation = frappe.get_doc({
+			'doctype': 'Donation',
+			'takti': donor.name,
+			'amount_gujarati': amount,
+			'amount_english': parse_amount_english(amount),
+			'village': village_doc.name,
+			'location': location_doc.name,
+			'collector': collector.name
+		})
+		donation.insert(ignore_permissions=True)
+		donation_id = donation.name
 
 	return {
 		'type': 'donation',
-		'donation': donation.name
+		'donation': donation_id,
+		'person': donor_id
 	}
 
 
@@ -419,7 +544,9 @@ def get_ocr_boxes(page_id):
 				"amount": row.amount,
 				"phone": row.phone,
 				"entry_type": row.entry_type,
-				"status": row.status
+				"status": row.status,
+				"reference_person": row.reference_person,
+				"reference_donation": row.reference_donation
 			})
 		doc.save(ignore_permissions=True)
 		frappe.db.commit()
@@ -441,7 +568,9 @@ def get_ocr_boxes(page_id):
 				"village": row.village or "",
 				"amount": row.amount or "",
 				"phone": row.phone or "",
-				"entryType": row.entry_type or ""
+				"entryType": row.entry_type or "",
+				"reference_person": row.reference_person or "",
+				"reference_donation": row.reference_donation or ""
 			}
 		}
 		boxes.append(box_dict)
@@ -474,7 +603,9 @@ def update_ocr_boxes(page_id, boxes):
 			"amount": fields.get("amount"),
 			"phone": fields.get("phone"),
 			"entry_type": fields.get("entryType") or fields.get("entry_type"),
-			"status": box.get("status") or "original"
+			"status": box.get("status") or "original",
+			"reference_person": fields.get("reference_person"),
+			"reference_donation": fields.get("reference_donation")
 		})
 		
 	doc.save(ignore_permissions=True)
@@ -539,6 +670,50 @@ def get_or_create_village(village_name):
 	})
 	village.insert(ignore_permissions=True)
 	return village
+
+
+def cleanup_village_if_orphaned(village_name):
+	"""
+	Deletes a village if no Person or Donation is still referencing it.
+	Called AFTER the person and donation have already been updated to the new village.
+	"""
+	village_name = (village_name or '').strip()
+	if not village_name or not frappe.db.exists('Village', village_name):
+		return
+	person_count = frappe.db.count('Person', {'village_gujarati_name': village_name})
+	donation_count = frappe.db.count('Donation', {'village': village_name})
+	if person_count == 0 and donation_count == 0:
+		try:
+			frappe.delete_doc('Village', village_name, ignore_permissions=True)
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), 'Village delete failed in cleanup_village_if_orphaned')
+
+
+def handle_village_correction(old_village_name, new_village_name):
+	"""
+	Safely updates the village link. If the old village was only used by this correction,
+	we delete it (if new_village exists) or rename it (if new_village doesn't exist).
+	"""
+	old_village_name = (old_village_name or '').strip()
+	new_village_name = (new_village_name or '').strip()
+	if not old_village_name or old_village_name == new_village_name:
+		if new_village_name:
+			return get_or_create_village(new_village_name)
+		return None
+
+	person_count = frappe.db.count('Person', {'village_gujarati_name': old_village_name})
+	donation_count = frappe.db.count('Donation', {'village': old_village_name})
+
+	# If it is only used by the current record being corrected, we can rename or merge/delete it
+	if person_count <= 1 and donation_count <= 1:
+		try:
+			target_exists = frappe.db.exists('Village', new_village_name)
+			rename_to = frappe.rename_doc('Village', old_village_name, new_village_name, force=True, merge=target_exists, ignore_permissions=True)
+			return frappe.get_doc('Village', rename_to)
+		except Exception:
+			return get_or_create_village(new_village_name)
+	else:
+		return get_or_create_village(new_village_name)
 
 
 def get_or_create_person(name, village_doc, mobile_number, is_collector=False, location_name=None):
