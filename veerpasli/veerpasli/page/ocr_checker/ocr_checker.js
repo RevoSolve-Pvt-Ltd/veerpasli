@@ -19,8 +19,8 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                                 <span id="ocrCheckerSegmentCount" class="badge bg-secondary">0 segments</span>
                             </div>
 
-                            <div id="ocrCheckerControls" class="d-flex flex-column flex-md-row align-items-start gap-2 mb-3">
-                                <div class="d-flex flex-wrap gap-2">
+                            <div id="ocrCheckerControls" class="d-flex flex-column flex-md-row align-items-start mb-3" style="gap: 12px;">
+                                <div class="d-flex flex-wrap" style="gap: 10px;">
                                     <button id="mergeBoxesBtn" class="btn btn-primary btn-sm" disabled>Merge selected</button>
                                     <button id="deleteBoxBtn" class="btn btn-danger btn-sm" disabled>Delete selected</button>
                                     <button id="clearSelectionBtn" class="btn btn-secondary btn-sm" type="button">Clear selection</button>
@@ -1343,7 +1343,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
     });
 
     function getRelativeCoords(event, element) {
-        var rect = element.getBoundingClientRect();
+        // Get the raw client position from mouse or touch
         var clientX = event.clientX;
         var clientY = event.clientY;
         if (event.touches && event.touches.length > 0) {
@@ -1352,10 +1352,32 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
         } else if (event.originalEvent && event.originalEvent.touches && event.originalEvent.touches.length > 0) {
             clientX = event.originalEvent.touches[0].clientX;
             clientY = event.originalEvent.touches[0].clientY;
+        } else if (event.changedTouches && event.changedTouches.length > 0) {
+            clientX = event.changedTouches[0].clientX;
+            clientY = event.changedTouches[0].clientY;
         }
+
+        // The imageWrapper is inside zoomContainer which has a CSS transform applied.
+        // getBoundingClientRect() already returns the *visual* (post-transform) position,
+        // so we subtract the frame's origin and then divide by scale to get image-space coords.
+        var frameRect = $frame[0].getBoundingClientRect();
+        var scale = (zoomState && zoomState.scale) ? zoomState.scale : 1;
+        var translateX = (zoomState && zoomState.translateX) ? zoomState.translateX : 0;
+        var translateY = (zoomState && zoomState.translateY) ? zoomState.translateY : 0;
+
+        // Position of the touch relative to the frame's top-left corner
+        var relToFrame = {
+            x: clientX - frameRect.left,
+            y: clientY - frameRect.top
+        };
+
+        // Reverse the zoom transform: undo translate then divide by scale
+        var imageSpaceX = (relToFrame.x - translateX) / scale;
+        var imageSpaceY = (relToFrame.y - translateY) / scale;
+
         return {
-            x: clientX - rect.left,
-            y: clientY - rect.top
+            x: imageSpaceX,
+            y: imageSpaceY
         };
     }
 
@@ -1386,9 +1408,9 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
         if (e.type === 'touchstart') {
             e.preventDefault();
         }
-        
+
         var coords = getRelativeCoords(e, $imageWrapper[0]);
-        
+
         if (!isDrawing) {
             isDrawing = true;
             drawStartX = coords.x;
@@ -1453,8 +1475,12 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
     $processDrawnBoxBtn.on('click', function () {
         if (!drawnBoxCoords) return;
 
+        // Show loading state on the button
+        $processDrawnBoxBtn
+            .prop('disabled', true)
+            .html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Running OCR…');
+
         setStatus('Processing OCR on selected area...', 'text-warning');
-        $processDrawnBoxBtn.prop('disabled', true);
 
         frappe.call({
             method: 'veerpasli.veerpasli.doctype.pdf_page.pdf_page.ocr_crop',
@@ -1463,7 +1489,8 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                 box: JSON.stringify(drawnBoxCoords)
             },
             callback: function (r) {
-                $processDrawnBoxBtn.prop('disabled', false);
+                // Restore button
+                $processDrawnBoxBtn.prop('disabled', false).text('Process Box');
                 if (r.exc) {
                     setStatus('OCR processing failed: ' + (r.exc.message || r.message), 'text-danger');
                     return;
@@ -1617,6 +1644,8 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
         // Prevent Frappe page from scrolling when touching inside the image frame
         frameEl.addEventListener('touchstart', function (e) {
             e.stopPropagation();
+            // When drawing mode is active, let all touches fall through to the draw handler
+            if (isDrawingMode) return;
             if (e.touches.length === 2) {
                 e.preventDefault();
                 zoomState.isPinching = true;
@@ -1634,6 +1663,11 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
 
         frameEl.addEventListener('touchmove', function (e) {
             e.stopPropagation();
+            // In drawing mode, prevent scroll but let mousemove handler update the preview box
+            if (isDrawingMode) {
+                e.preventDefault();
+                return;
+            }
             if (zoomState.isPinching && e.touches.length === 2) {
                 e.preventDefault();
                 var currentDistance = getTouchDistance(e.touches[0], e.touches[1]);
