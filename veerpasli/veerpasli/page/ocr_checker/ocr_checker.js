@@ -268,7 +268,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
 
         var resultBoxes = [];
 
-        var createBoxObj = function(text, cX, widthVal) {
+        var createBoxObj = function (text, cX, widthVal) {
             return {
                 id: nextBoxId++,
                 text: text,
@@ -292,19 +292,19 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
 
         // 1. Left box
         if (leftTokens.length > 0) {
-            var leftText = leftTokens.map(function(t) { return t.value; }).join('').trim();
+            var leftText = leftTokens.map(function (t) { return t.value; }).join('').trim();
             var leftCenter = leftEdge + leftWidth / 2;
             resultBoxes.push(createBoxObj(leftText, leftCenter, leftWidth));
         }
 
         // 2. Middle (selected) box
-        var midText = midTokens.map(function(t) { return t.value; }).join('').trim();
+        var midText = midTokens.map(function (t) { return t.value; }).join('').trim();
         var midCenter = leftEdge + leftWidth + midWidth / 2;
         resultBoxes.push(createBoxObj(midText, midCenter, midWidth));
 
         // 3. Right box
         if (rightTokens.length > 0) {
-            var rightText = rightTokens.map(function(t) { return t.value; }).join('').trim();
+            var rightText = rightTokens.map(function (t) { return t.value; }).join('').trim();
             var rightCenter = leftEdge + leftWidth + midWidth + rightWidth / 2;
             resultBoxes.push(createBoxObj(rightText, rightCenter, rightWidth));
         }
@@ -390,7 +390,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
     function openBoxEditorModal(box) {
         box.fields.hastes = box.fields.hastes || [];
         var tokens = tokenizeText(box.text || '', true);
-        
+
         var currentOffset = 0;
         tokens.forEach(function (token) {
             token.start = currentOffset;
@@ -421,14 +421,14 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             while (true) {
                 var idx = (box.text || '').indexOf(val, pos);
                 if (idx === -1) break;
-                
+
                 var start = idx;
                 var end = idx + val.length;
-                
+
                 var overlaps = matchedRanges.some(function (r) {
                     return (start < r.end && end > r.start);
                 });
-                
+
                 if (!overlaps) {
                     matchedRanges.push({ start: start, end: end });
                     var tokenIndices = [];
@@ -455,8 +455,21 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
 
         function renderModalContent() {
             var html = '<div class="ocr-checker-modal">';
-            html += '<div class="mb-3"><strong>Combined box text</strong></div>';
 
+            // 1. Entry Type
+            html += '<div class="mb-2"><strong>Entry Type</strong></div>';
+            html += '<div class="d-flex flex-wrap gap-2 mb-4">';
+            ['Donation', 'Collector'].forEach(function (type) {
+                var buttonClass = 'btn btn-sm btn-outline-secondary';
+                if (selectedEntryType === type) {
+                    buttonClass = 'btn btn-sm btn-secondary active';
+                }
+                html += '<button type="button" class="ocr-entry-type ' + buttonClass + '" data-type="' + type + '">' + type + '</button>';
+            });
+            html += '</div>';
+
+            // 2. Text Box
+            html += '<div class="mb-2"><strong>Text Box</strong></div>';
             var assignedTokenSet = new Set();
             Object.keys(assignedTokenIndices).forEach(function (key) {
                 (assignedTokenIndices[key] || []).forEach(function (idx) {
@@ -467,7 +480,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                 return !assignedTokenSet.has(index);
             });
 
-            html += '<div class="ocr-token-container mb-3" style="padding: 0.75rem; border: 1px solid #dee2e6; border-radius: 4px; background: #fff; min-height: 60px; max-height: 150px; overflow-y: auto;">';
+            html += '<div class="ocr-token-container mb-4" style="padding: 0.75rem; border: 1px solid #dee2e6; border-radius: 4px; background: #fff; min-height: 60px; max-height: 150px; overflow-y: auto;">';
             if (remainingTokens.length > 0) {
                 remainingTokens.forEach(function (token) {
                     var originalIndex = tokens.indexOf(token);
@@ -485,9 +498,15 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             }
             html += '</div>';
 
-            html += '<div class="mb-3"><strong>Select field</strong></div>';
-            html += '<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">';
+            // 3. Tag Selection
+            html += '<div class="mb-2"><strong>Tag Selection</strong></div>';
+            html += '<div class="d-flex flex-wrap gap-2 mb-4 align-items-center">';
             fieldNames.forEach(function (field) {
+                if (selectedEntryType === 'Donation' && field === 'phone') return;
+                if (selectedEntryType === 'Collector' && field === 'amount') return;
+                // Hide button if the field is already tagged
+                if (box.fields[field]) return;
+                
                 var buttonClass = 'btn btn-sm btn-outline-primary';
                 if (activeField === field) {
                     buttonClass = 'btn btn-sm btn-primary';
@@ -498,6 +517,9 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             if (selectedEntryType === 'Donation') {
                 (box.fields.hastes || []).forEach(function (hasteObj, i) {
                     var fieldKey = 'haste_' + i;
+                    // Hide button if this Haste is already tagged
+                    if (hasteObj.name) return;
+
                     var buttonClass = 'btn btn-sm btn-outline-warning';
                     if (activeField === fieldKey) {
                         buttonClass = 'btn btn-sm btn-warning';
@@ -507,42 +529,43 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                 });
                 html += '<button type="button" id="ocrCheckerAddHaste" class="btn btn-sm btn-outline-info">+ Add Haste</button>';
             }
-
-            html += '<button id="ocrCheckerAssignToken" class="btn btn-sm btn-success ms-2">Assign</button>';
-            html += '<button id="ocrCheckerClearTokenSelection" class="btn btn-sm btn-secondary">Clear</button>';
-            html += '<button id="ocrCheckerResetAssignments" class="btn btn-sm btn-danger ms-auto">Redo / Reset</button>';
             html += '</div>';
 
-            html += '<div class="mb-3"><strong>Entry type</strong></div>';
-            html += '<div class="d-flex flex-wrap gap-2 mb-3">';
-            ['Donation', 'Collector'].forEach(function (type) {
-                var buttonClass = 'btn btn-sm btn-outline-secondary';
-                if (selectedEntryType === type) {
-                    buttonClass = 'btn btn-sm btn-secondary active';
-                }
-                html += '<button type="button" class="ocr-entry-type ' + buttonClass + '" data-type="' + type + '">' + type + '</button>';
-            });
+            // 4. Action Buttons (Assign, Cancel)
+            html += '<div class="d-flex mb-4" style="border-top: 1px solid #eee; padding-top: 15px; display: flex; align-items: center;">';
+            html += '  <button id="ocrCheckerAssignToken" class="btn btn-sm btn-success" style="margin-right: 10px;">Assign</button>';
+            html += '  <button id="ocrCheckerClearTokenSelection" class="btn btn-sm btn-secondary">Cancel</button>';
             html += '</div>';
 
-            html += '<div class="mb-3"><strong>Assigned fields</strong></div>';
+            // 5. Assigned Fields Area
+            html += '<div style="background: #f8f9fa; padding: 12px; border-radius: 6px; border: 1px solid #e9ecef;">';
+            html += '  <div class="mb-2"><strong>Assigned fields</strong></div>';
             fieldNames.forEach(function (field) {
-                html += '<div class="mb-1"><strong>' + field.charAt(0).toUpperCase() + field.slice(1) + ':</strong> ' + (box.fields[field] ? '<code>' + frappe.utils.escape_html(box.fields[field]) + '</code>' : '<span class="text-muted">not set</span>') + '</div>';
+                if (selectedEntryType === 'Donation' && field === 'phone') return;
+                if (selectedEntryType === 'Collector' && field === 'amount') return;
+                html += '  <div class="mb-1"><strong>' + field.charAt(0).toUpperCase() + field.slice(1) + ':</strong> ' + (box.fields[field] ? '<code>' + frappe.utils.escape_html(box.fields[field]) + '</code>' : '<span class="text-muted">not set</span>') + '</div>';
             });
             if (selectedEntryType === 'Donation' && box.fields.hastes && box.fields.hastes.length > 0) {
                 box.fields.hastes.forEach(function (hasteObj, i) {
                     var valueHtml = hasteObj.name ? '<code>' + frappe.utils.escape_html(hasteObj.name) + '</code>' : '<span class="text-muted">not set</span>';
-                    html += '<div class="mb-1"><strong>Haste ' + (i + 1) + ':</strong> ' + valueHtml + ' <button type="button" class="btn btn-xs btn-link text-danger ocr-remove-haste" data-index="' + i + '" style="padding: 0; margin-left: 5px;">[Remove]</button></div>';
+                    html += '  <div class="mb-1"><strong>Haste ' + (i + 1) + ':</strong> ' + valueHtml + ' <button type="button" class="btn btn-xs btn-link text-danger ocr-remove-haste" data-index="' + i + '" style="padding: 0; margin-left: 5px;">[Remove]</button></div>';
                 });
             }
-            html += '</div>';
+            html += '</div>'; // End assigned fields area
+
+            html += '</div>'; // End container
             return html;
         }
 
         var dialog = new frappe.ui.Dialog({
-            title: 'Tag combined box text',
+            title: 'Tag ' + selectedEntryType,
             fields: [
                 { fieldtype: 'HTML', fieldname: 'content' }
-            ]
+            ],
+            primary_action_label: 'Submit',
+            primary_action: submitBoxEntry,
+            secondary_action_label: 'Redo / Reset',
+            secondary_action: resetAssignments
         });
 
         function submitBoxEntry() {
@@ -621,7 +644,22 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             });
         }
 
+        function resetAssignments() {
+            fieldNames.forEach(function (field) {
+                box.fields[field] = '';
+            });
+            box.fields.hastes = [];
+            assignedTokenIndices = {};
+            selectedTokenIds.clear();
+            activeField = null;
+            redraw();
+            renderBoxes();
+            renderControls();
+            setStatus('Reset all assignments for this box.', 'text-muted');
+        }
+
         function redraw() {
+            dialog.set_title('Tag ' + selectedEntryType);
             dialog.fields_dict.content.$wrapper.html(renderModalContent());
             dialog.fields_dict.content.$wrapper.find('.ocr-entry-type').on('click', function () {
                 selectedEntryType = $(this).attr('data-type');
@@ -658,7 +696,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                 }).map(function (token) {
                     return token.value;
                 }).join('').trim();
-                
+
                 // Clean up whitespace around hyphens/mdashes/ndashes (e.g. "nirona - chota" -> "nirona-chota")
                 assignedValue = assignedValue.replace(/\s*([-—–])\s*/g, '$1');
                 var assignedField = activeField;
@@ -682,19 +720,6 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                 selectedTokenIds.clear();
                 redraw();
             });
-            dialog.fields_dict.content.$wrapper.find('#ocrCheckerResetAssignments').on('click', function () {
-                fieldNames.forEach(function (field) {
-                    box.fields[field] = '';
-                });
-                box.fields.hastes = [];
-                assignedTokenIndices = {};
-                selectedTokenIds.clear();
-                activeField = null;
-                redraw();
-                renderBoxes();
-                renderControls();
-                setStatus('Reset all assignments for this box.', 'text-muted');
-            });
             dialog.fields_dict.content.$wrapper.find('#ocrCheckerAddHaste').on('click', function () {
                 if (!box.fields.hastes) {
                     box.fields.hastes = [];
@@ -705,7 +730,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             dialog.fields_dict.content.$wrapper.find('.ocr-remove-haste').on('click', function () {
                 var index = parseInt($(this).attr('data-index'), 10);
                 box.fields.hastes.splice(index, 1);
-                
+
                 delete assignedTokenIndices['haste_' + index];
                 var newAssigned = {};
                 Object.keys(assignedTokenIndices).forEach(function (key) {
@@ -747,7 +772,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
         function renderModalContent() {
             var html = '<div class="ocr-checker-modal">';
             html += '<div class="mb-3"><strong>Split box text</strong></div>';
-            
+
             html += '<div class="ocr-token-container mb-3" style="padding: 0.75rem; border: 1px solid #dee2e6; border-radius: 4px; background: #fff; max-height: 260px; overflow-y: auto;">';
             tokens.forEach(function (token, index) {
                 var cssClass = 'ocr-token';
@@ -775,7 +800,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
 
         function redraw() {
             dialog.fields_dict.content.$wrapper.html(renderModalContent());
-            
+
             dialog.fields_dict.content.$wrapper.find('.ocr-token').on('click', function () {
                 var index = parseInt($(this).attr('data-token-index'), 10);
                 if (selectedTokenIds.has(index)) {
@@ -811,7 +836,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                         text: newBox.text,
                         boundingBox: newBox.boundingBox
                     }];
-                    
+
                     if (jsonData && Array.isArray(jsonData.segments)) {
                         jsonData.segments.push({
                             text: newBox.text,
