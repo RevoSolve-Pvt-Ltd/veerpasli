@@ -206,28 +206,16 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
         return box.fields.name && box.fields.village && (box.fields.amount || box.fields.phone);
     }
 
-    function tokenizeText(text, splitByHyphen) {
+    function tokenizeText(text) {
         var tokens = [];
         var regex = /(\S+\s*)/g;
         var match;
         while ((match = regex.exec(text))) {
             var word = match[1];
-            if (splitByHyphen) {
-                var parts = word.split(/([-—–])/);
-                parts.forEach(function (part) {
-                    if (part !== '') {
-                        tokens.push({
-                            value: part,
-                            label: part.trim()
-                        });
-                    }
-                });
-            } else {
-                tokens.push({
-                    value: word,
-                    label: word.trim()
-                });
-            }
+            tokens.push({
+                value: word,
+                label: word.trim()
+            });
         }
         return tokens;
     }
@@ -243,89 +231,73 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             }
         }
 
-        var selectedText = selectedIndexes.map(function (index) {
-            return tokens[index].value;
-        }).join('').trim();
-        var remainingTokens = tokens.filter(function (token, index) {
-            return !selectedTokenIds.has(index);
-        });
-        var remainingText = remainingTokens.map(function (token) {
-            return token.value;
-        }).join('').trim();
+        var firstSelected = selectedIndexes[0];
+        var lastSelected = selectedIndexes[selectedIndexes.length - 1];
 
-        if (!selectedText || !remainingText) {
-            return null;
-        }
+        // Group tokens
+        var leftTokens = tokens.slice(0, firstSelected);
+        var midTokens = tokens.slice(firstSelected, lastSelected + 1);
+        var rightTokens = tokens.slice(lastSelected + 1);
 
-        var totalLength = tokens.reduce(function (sum, token) {
-            return sum + token.value.length;
-        }, 0);
-        var selectedLength = selectedIndexes.reduce(function (sum, index) {
-            return sum + tokens[index].value.length;
-        }, 0);
+        // Sum lengths
+        var leftLength = leftTokens.reduce(function (sum, t) { return sum + t.value.length; }, 0);
+        var midLength = midTokens.reduce(function (sum, t) { return sum + t.value.length; }, 0);
+        var rightLength = rightTokens.reduce(function (sum, t) { return sum + t.value.length; }, 0);
+        var totalLength = leftLength + midLength + rightLength;
+
+        if (totalLength === 0) return null;
 
         var bb = box.boundingBox;
-        var left = bb.centerPerX - bb.perWidth / 2;
-        var selectedWidth = bb.perWidth * (selectedLength / totalLength);
-        var remainingWidth = bb.perWidth - selectedWidth;
-        var splitOnLeft = selectedIndexes[0] / tokens.length < 0.5;
+        var leftEdge = bb.centerPerX - bb.perWidth / 2;
 
-        var boxA = {
-            id: nextBoxId++,
-            text: splitOnLeft ? selectedText : remainingText,
-            boundingBox: {
-                centerPerX: left + (splitOnLeft ? selectedWidth / 2 : remainingWidth / 2),
-                centerPerY: bb.centerPerY,
-                perWidth: splitOnLeft ? selectedWidth : remainingWidth,
-                perHeight: bb.perHeight
-            },
-            sourceSegments: box.sourceSegments
-                ? JSON.parse(JSON.stringify(box.sourceSegments))
-                : [{
-                    text: box.text,
-                    boundingBox: box.boundingBox
-                }],
-            status: box.status,
-            selected: false,
-            mergedIds: box.mergedIds.slice(),
-            fields: {
-                name: '',
-                village: '',
-                amount: '',
-                phone: ''
-            }
+        var leftWidth = bb.perWidth * (leftLength / totalLength);
+        var midWidth = bb.perWidth * (midLength / totalLength);
+        var rightWidth = bb.perWidth * (rightLength / totalLength);
+
+        var resultBoxes = [];
+
+        var createBoxObj = function(text, cX, widthVal) {
+            return {
+                id: nextBoxId++,
+                text: text,
+                boundingBox: {
+                    centerPerX: cX,
+                    centerPerY: bb.centerPerY,
+                    perWidth: widthVal,
+                    perHeight: bb.perHeight
+                },
+                status: box.status,
+                selected: false,
+                mergedIds: box.mergedIds ? box.mergedIds.slice() : [],
+                fields: {
+                    name: '',
+                    village: '',
+                    amount: '',
+                    phone: ''
+                }
+            };
         };
 
-        var boxB = {
-            id: nextBoxId++,
-            text: splitOnLeft ? remainingText : selectedText,
-            boundingBox: {
-                centerPerX: left + (splitOnLeft ? selectedWidth + remainingWidth / 2 : remainingWidth + selectedWidth / 2),
-                centerPerY: bb.centerPerY,
-                perWidth: splitOnLeft ? remainingWidth : selectedWidth,
-                perHeight: bb.perHeight
-            },
-            sourceSegments: box.sourceSegments
-                ? JSON.parse(JSON.stringify(box.sourceSegments))
-                : [{
-                    text: box.text,
-                    boundingBox: box.boundingBox
-                }],
-            status: box.status,
-            selected: false,
-            mergedIds: box.mergedIds.slice(),
-            fields: {
-                name: '',
-                village: '',
-                amount: '',
-                phone: ''
-            }
-        };
-
-        if (splitOnLeft) {
-            return { left: boxA, right: boxB };
+        // 1. Left box
+        if (leftTokens.length > 0) {
+            var leftText = leftTokens.map(function(t) { return t.value; }).join('').trim();
+            var leftCenter = leftEdge + leftWidth / 2;
+            resultBoxes.push(createBoxObj(leftText, leftCenter, leftWidth));
         }
-        return { left: boxB, right: boxA };
+
+        // 2. Middle (selected) box
+        var midText = midTokens.map(function(t) { return t.value; }).join('').trim();
+        var midCenter = leftEdge + leftWidth + midWidth / 2;
+        resultBoxes.push(createBoxObj(midText, midCenter, midWidth));
+
+        // 3. Right box
+        if (rightTokens.length > 0) {
+            var rightText = rightTokens.map(function(t) { return t.value; }).join('').trim();
+            var rightCenter = leftEdge + leftWidth + midWidth + rightWidth / 2;
+            resultBoxes.push(createBoxObj(rightText, rightCenter, rightWidth));
+        }
+
+        return resultBoxes;
     }
 
     function renderFieldLabels(box, $box) {
@@ -754,22 +726,13 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
     }
 
     function openSplitModal(box) {
-        var splitByHyphen = false;
-        var tokens = tokenizeText(box.text || '', splitByHyphen);
+        var tokens = tokenizeText(box.text || '');
         var selectedTokenIds = new Set();
 
         function renderModalContent() {
             var html = '<div class="ocr-checker-modal">';
             html += '<div class="mb-3"><strong>Split box text</strong></div>';
             
-            // Switch for hyphen/mdash splitting
-            html += '<div class="form-check form-switch mb-3" style="padding-left: 2.5em; min-height: 24px;">';
-            html += '  <input class="form-check-input" type="checkbox" id="ocrSplitByHyphenMdash"' + (splitByHyphen ? ' checked' : '') + ' style="cursor: pointer; width: 2.5em; height: 1.25em;">';
-            html += '  <label class="form-check-label" for="ocrSplitByHyphenMdash" style="cursor: pointer; user-select: none; font-weight: 500; margin-left: 0.5rem; line-height: 1.25em;">';
-            html += '    Split words by hyphen/mdash (e.g. abcd-efgh &rarr; abcd, -, efgh)';
-            html += '  </label>';
-            html += '</div>';
-
             html += '<div class="ocr-token-container mb-3" style="padding: 0.75rem; border: 1px solid #dee2e6; border-radius: 4px; background: #fff; max-height: 260px; overflow-y: auto;">';
             tokens.forEach(function (token, index) {
                 var cssClass = 'ocr-token';
@@ -798,14 +761,6 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
         function redraw() {
             dialog.fields_dict.content.$wrapper.html(renderModalContent());
             
-            // Bind checkbox change event
-            dialog.fields_dict.content.$wrapper.find('#ocrSplitByHyphenMdash').on('change', function () {
-                splitByHyphen = $(this).is(':checked');
-                tokens = tokenizeText(box.text || '', splitByHyphen);
-                selectedTokenIds.clear();
-                redraw();
-            });
-
             dialog.fields_dict.content.$wrapper.find('.ocr-token').on('click', function () {
                 var index = parseInt($(this).attr('data-token-index'), 10);
                 if (selectedTokenIds.has(index)) {
@@ -820,40 +775,37 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                     frappe.msgprint('Select tokens before splitting the box.');
                     return;
                 }
-                var splitBoxes = splitBoxByTokenSelection(box, tokens, selectedTokenIds);
-                if (!splitBoxes) {
-                    frappe.msgprint('Cannot split this selection into two boxes. Choose a contiguous range of tokens and try again.');
+                var newBoxes = splitBoxByTokenSelection(box, tokens, selectedTokenIds);
+                if (!newBoxes || !newBoxes.length) {
+                    frappe.msgprint('Cannot split this selection. Choose a contiguous range of tokens and try again.');
                     return;
                 }
 
                 // Remove the old box's segments from jsonData.segments
                 removeSegmentForBox(box);
 
-                box.text = splitBoxes.left.text;
-                box.boundingBox = splitBoxes.left.boundingBox;
-                box.sourceSegments = [{
-                    text: splitBoxes.left.text,
-                    boundingBox: splitBoxes.left.boundingBox
-                }];
-
-                var rightBox = splitBoxes.right;
-                rightBox.sourceSegments = [{
-                    text: rightBox.text,
-                    boundingBox: rightBox.boundingBox
-                }];
-
-                if (jsonData && Array.isArray(jsonData.segments)) {
-                    jsonData.segments.push({
-                        text: box.text,
-                        boundingBox: box.boundingBox
-                    });
-                    jsonData.segments.push({
-                        text: rightBox.text,
-                        boundingBox: rightBox.boundingBox
-                    });
+                // Remove the old box from the local boxes array
+                var oldBoxIndex = boxes.indexOf(box);
+                if (oldBoxIndex > -1) {
+                    boxes.splice(oldBoxIndex, 1);
                 }
 
-                boxes.push(rightBox);
+                // Add the new boxes to boxes and to jsonData.segments in correct order
+                newBoxes.forEach(function (newBox) {
+                    newBox.sourceSegments = [{
+                        text: newBox.text,
+                        boundingBox: newBox.boundingBox
+                    }];
+                    
+                    if (jsonData && Array.isArray(jsonData.segments)) {
+                        jsonData.segments.push({
+                            text: newBox.text,
+                            boundingBox: newBox.boundingBox
+                        });
+                    }
+                    boxes.push(newBox);
+                });
+
                 selectedTokenIds.clear();
 
                 // Persist the updated JSON data to the file
