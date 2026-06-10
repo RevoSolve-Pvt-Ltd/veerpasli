@@ -122,21 +122,22 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             .ocr-box:hover { filter: saturate(1.2); }
             .ocr-box-split-icon {
                  position: absolute;
-                 top: -16px;
-                 right: 4px;
-                 width: 35px;
-                 height: 35px;
+                 top: -10px;
+                 right: -10px;
+                 width: 20px;
+                 height: 20px;
                  border: none;
                  border-radius: 50%;
-                 background: rgba(255,255,255,0.92);
-                 padding:1px;
+                 background: rgba(255,255,255,0.95);
+                 padding: 0;
                  color: #dc3545;
+                 font-size: 12px;
                  box-sizing: border-box;
                  display: flex;
                  align-items: center;
                  justify-content: center;
                  cursor: pointer;
-                 box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+                 box-shadow: 0 1px 4px rgba(0,0,0,0.2);
                  z-index: 20;
             }
             .ocr-checker-field { margin-bottom: 1rem; }
