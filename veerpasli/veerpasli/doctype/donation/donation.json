@@ -48,7 +48,8 @@
    "fieldname": "amount_english",
    "fieldtype": "Int",
    "in_list_view": 1,
-   "label": "Amount English"
+   "label": "Amount English",
+   "show_sum": 1
   },
   {
    "fieldname": "donor_information_section",
