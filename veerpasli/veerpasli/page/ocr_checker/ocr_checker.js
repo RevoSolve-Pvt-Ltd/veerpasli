@@ -506,7 +506,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                 if (selectedEntryType === 'Collector' && field === 'amount') return;
                 // Hide button if the field is already tagged
                 if (box.fields[field]) return;
-                
+
                 var buttonClass = 'btn btn-sm btn-outline-primary';
                 if (activeField === field) {
                     buttonClass = 'btn btn-sm btn-primary';
@@ -771,8 +771,9 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
 
         function renderModalContent() {
             var html = '<div class="ocr-checker-modal">';
-            html += '<div class="mb-3"><strong>Split box text</strong></div>';
 
+            // 1. Text Box Title and Container
+            html += '<div class="mb-2"><strong>Text Box</strong></div>';
             html += '<div class="ocr-token-container mb-3" style="padding: 0.75rem; border: 1px solid #dee2e6; border-radius: 4px; background: #fff; max-height: 260px; overflow-y: auto;">';
             tokens.forEach(function (token, index) {
                 var cssClass = 'ocr-token';
@@ -782,20 +783,33 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                 html += '<span class="' + cssClass + '" data-token-index="' + index + '">' + frappe.utils.escape_html(token.value) + '</span>';
             });
             html += '</div>';
-            html += '<div class="mb-3 text-muted">Select the exact text you want to split into a new box, then click <strong>Split selected text</strong>.</div>';
-            html += '<div class="d-flex gap-2 mb-3">';
-            html += '<button id="ocrCheckerSplitOnly" class="btn btn-sm btn-warning">Split selected text</button>';
-            html += '<button id="ocrCheckerClearTokenSelection" class="btn btn-sm btn-secondary">Clear selection</button>';
+
+            // 2. Action Buttons (Split, Cancel)
+            html += '<div class="d-flex mb-3" style="display: flex; align-items: center;">';
+            html += '  <button id="ocrCheckerSplitOnly" class="btn btn-sm btn-success" style="margin-right: 10px;">Split</button>';
+            html += '  <button id="ocrCheckerClearTokenSelection" class="btn btn-sm btn-secondary">Cancel</button>';
             html += '</div>';
+
+            // 3. Examples Container
+            html += '<div style="background: #f8f9fa; padding: 12px; border-radius: 6px; border: 1px solid #e9ecef; margin-top: 15px; font-size: 12px; line-height: 1.8;">';
+            html += '  <div class="mb-2"><strong>Quick Examples:</strong></div>';
+            html += '  <div class="mb-2">• <strong>Middle Selection</strong>: <span style="background: #f1f5f9; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px; margin-right: 2px;">A</span> <span style="background: #f1f5f9; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px; margin-right: 2px;">B</span> <span style="background: #f1f5f9; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px;">C</span>. Select <span style="background: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px; font-weight: bold;">B</span> to split into 3 boxes (<span style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px;">A</span>, <span style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px;">B</span>, <span style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px;">C</span>).</div>';
+            html += '  <div>• <strong>End Selection</strong>: <span style="background: #f1f5f9; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px; margin-right: 2px;">A</span> <span style="background: #f1f5f9; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px; margin-right: 2px;">B</span> <span style="background: #f1f5f9; border: 1px solid #cbd5e1; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px;">C</span>. Select <span style="background: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px; font-weight: bold;">C</span> to split into 2 boxes (<span style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px;">A B</span>, <span style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px;">C</span>).</div>';
+            html += '</div>';
+
             html += '</div>';
             return html;
         }
 
         var dialog = new frappe.ui.Dialog({
-            title: 'Split box text',
+            title: 'Split Box',
             fields: [
                 { fieldtype: 'HTML', fieldname: 'content' }
-            ]
+            ],
+            primary_action_label: 'Done',
+            primary_action: function () {
+                dialog.hide();
+            }
         });
 
         function redraw() {
@@ -862,9 +876,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             });
         }
 
-        dialog.set_primary_action('Done', function () {
-            dialog.hide();
-        });
+
 
         redraw();
         dialog.show();
