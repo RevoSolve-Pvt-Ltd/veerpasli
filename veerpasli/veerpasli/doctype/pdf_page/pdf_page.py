@@ -1015,3 +1015,79 @@ def remove_person_tagged_box(reference_doctype, reference_name):
 			person.set('tagged_boxes', new_tagged_boxes)
 			person.save(ignore_permissions=True)
 
+
+@frappe.whitelist()
+def ocr_crop(page_id, box):
+	if isinstance(box, str):
+		import json
+		box = json.loads(box)
+		
+	doc = frappe.get_doc("Pdf page", page_id)
+	if not doc.page_file:
+		frappe.throw("Page file not found")
+		
+	# Get paths
+	image_path = frappe.get_site_path(doc.page_file.lstrip('/'))
+	
+	from PIL import Image
+	img = Image.open(image_path)
+	img_w, img_h = img.size
+	
+	# Bounding box coordinates
+	center_x = box.get("centerPerX")
+	center_y = box.get("centerPerY")
+	width_p = box.get("perWidth")
+	height_p = box.get("perHeight")
+	
+	left = int((center_x - width_p / 2) * img_w)
+	top = int((center_y - height_p / 2) * img_h)
+	right = int((center_x + width_p / 2) * img_w)
+	bottom = int((center_y + height_p / 2) * img_h)
+	
+	# Clamp boundaries
+	left = max(0, min(left, img_w))
+	top = max(0, min(top, img_h))
+	right = max(0, min(right, img_w))
+	bottom = max(0, min(bottom, img_h))
+	
+	# Crop
+	cropped = img.crop((left, top, right, bottom))
+	
+	# Save temporary crop image
+	import uuid
+	temp_filename = f"temp_crop_{uuid.uuid4().hex}"
+	temp_img_path = frappe.get_site_path("public", "files", f"{temp_filename}.png")
+	temp_json_path = frappe.get_site_path("public", "files", f"{temp_filename}.json")
+	
+	cropped.save(temp_img_path)
+	
+	# Run ocr.js
+	script_path = os.path.abspath(os.path.join(frappe.get_app_path("veerpasli"), "..", "ocr.js"))
+	nvm_sh_path = os.path.expanduser("~/.nvm/nvm.sh")
+	cmd = f"source {nvm_sh_path} && nvm exec 24 node {script_path} {temp_img_path}"
+	
+	text = ""
+	try:
+		result = subprocess.run([cmd], shell=True, capture_output=True, text=True, executable="/bin/bash")
+		if result.returncode == 0 and os.path.exists(temp_json_path):
+			with open(temp_json_path, "r") as f:
+				data = json.load(f)
+				segments = data.get("segments", [])
+				text = " ".join([s.get("text", "") for s in segments if s.get("text")])
+	finally:
+		# Cleanup temp files
+		if os.path.exists(temp_img_path):
+			os.remove(temp_img_path)
+		if os.path.exists(temp_json_path):
+			os.remove(temp_json_path)
+			
+	return {
+		"text": text.strip(),
+		"boundingBox": {
+			"centerPerX": center_x,
+			"centerPerY": center_y,
+			"perWidth": width_p,
+			"perHeight": height_p
+		}
+	}
+

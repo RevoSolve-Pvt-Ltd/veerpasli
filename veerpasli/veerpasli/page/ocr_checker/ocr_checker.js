@@ -24,6 +24,8 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                                     <button id="mergeBoxesBtn" class="btn btn-primary btn-sm" disabled>Merge selected</button>
                                     <button id="deleteBoxBtn" class="btn btn-danger btn-sm" disabled>Delete selected</button>
                                     <button id="clearSelectionBtn" class="btn btn-secondary btn-sm" type="button">Clear selection</button>
+                                    <button id="drawBoxBtn" class="btn btn-outline-info btn-sm" type="button">Draw Box</button>
+                                    <button id="processDrawnBoxBtn" class="btn btn-warning btn-sm" type="button" style="display: none;">Process Box</button>
                                     <button id="verifyPageBtn" class="btn btn-success btn-sm d-none">Mark page verified</button>
                                 </div>
                                 <div class="ms-md-auto text-muted small">Selected: <span id="ocrCheckerSelectedCount">0</span></div>
@@ -61,9 +63,17 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
     var $deleteBtn = $content.find('#deleteBoxBtn');
     var $clearSelectionBtn = $content.find('#clearSelectionBtn');
     var $verifyPageBtn = $content.find('#verifyPageBtn');
+    var $drawBoxBtn = $content.find('#drawBoxBtn');
+    var $processDrawnBoxBtn = $content.find('#processDrawnBoxBtn');
     var $selectedCount = $content.find('#ocrCheckerSelectedCount');
     var $detailsCard = $content.find('#ocrCheckerDetails');
     var $detailsBody = $detailsCard.find('.card-body');
+
+    var isDrawingMode = false;
+    var isDrawing = false;
+    var drawStartX = 0;
+    var drawStartY = 0;
+    var drawnBoxCoords = null;
 
     var boxes = [];
     var nextBoxId = 0;
@@ -153,6 +163,9 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             #ocrCheckerFrame, #ocrCheckerFrame * { touch-action: none; -webkit-user-select: none; user-select: none; }
             #ocrCheckerOverlay { pointer-events: none; }
             #ocrCheckerOverlay .ocr-box { pointer-events: auto; }
+            .ocr-box-drawing { border: 2px dashed #6f42c1; background: rgba(111, 66, 193, 0.15); pointer-events: none; position: absolute; z-index: 100; box-sizing: border-box; }
+            .ocr-drawing-mode { cursor: crosshair !important; }
+            .ocr-drawing-mode .ocr-box { pointer-events: none !important; }
             @media (max-width: 768px) {
                 #ocrCheckerFrame { min-height: 300px; }
                 .ocr-box-original { border-width: 1px; }
@@ -1205,6 +1218,19 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             return;
         }
 
+        isDrawingMode = false;
+        if ($drawBoxBtn.length) {
+            $drawBoxBtn.removeClass('btn-info').addClass('btn-outline-info').text('Draw Box');
+        }
+        if ($imageWrapper.length) {
+            $imageWrapper.removeClass('ocr-drawing-mode');
+        }
+        $('#ocrTempDrawBox').remove();
+        drawnBoxCoords = null;
+        if ($processDrawnBoxBtn.length) {
+            $processDrawnBoxBtn.hide();
+        }
+
         setStatus('Loading data from Pdf page...', 'text-muted');
         $overlay.empty();
         $segmentCount.text('0 boxes');
@@ -1314,6 +1340,175 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
         });
         renderBoxes();
         renderControls();
+    });
+
+    function getRelativeCoords(event, element) {
+        var rect = element.getBoundingClientRect();
+        var clientX = event.clientX;
+        var clientY = event.clientY;
+        if (event.touches && event.touches.length > 0) {
+            clientX = event.touches[0].clientX;
+            clientY = event.touches[0].clientY;
+        } else if (event.originalEvent && event.originalEvent.touches && event.originalEvent.touches.length > 0) {
+            clientX = event.originalEvent.touches[0].clientX;
+            clientY = event.originalEvent.touches[0].clientY;
+        }
+        return {
+            x: clientX - rect.left,
+            y: clientY - rect.top
+        };
+    }
+
+    $drawBoxBtn.on('click', function () {
+        isDrawingMode = !isDrawingMode;
+        if (isDrawingMode) {
+            $drawBoxBtn.removeClass('btn-outline-info').addClass('btn-info').text('Cancel Drawing');
+            $imageWrapper.addClass('ocr-drawing-mode');
+            selectedBoxIds.clear();
+            boxes.forEach(function (b) {
+                b.selected = false;
+            });
+            renderBoxes();
+            renderControls();
+            setStatus('Drawing mode enabled. Click on the image to start drawing a box.', 'text-info');
+        } else {
+            $drawBoxBtn.removeClass('btn-info').addClass('btn-outline-info').text('Draw Box');
+            $imageWrapper.removeClass('ocr-drawing-mode');
+            $('#ocrTempDrawBox').remove();
+            drawnBoxCoords = null;
+            $processDrawnBoxBtn.hide();
+            setStatus('Drawing mode disabled.', 'text-muted');
+        }
+    });
+
+    $imageWrapper.on('mousedown touchstart', function (e) {
+        if (!isDrawingMode) return;
+        if (e.type === 'touchstart') {
+            e.preventDefault();
+        }
+        
+        var coords = getRelativeCoords(e, $imageWrapper[0]);
+        
+        if (!isDrawing) {
+            isDrawing = true;
+            drawStartX = coords.x;
+            drawStartY = coords.y;
+
+            $('#ocrTempDrawBox').remove();
+
+            var $tempBox = $('<div id="ocrTempDrawBox" class="ocr-box-drawing"></div>');
+            $tempBox.css({
+                left: (drawStartX / $imageWrapper.width()) * 100 + '%',
+                top: (drawStartY / $imageWrapper.height()) * 100 + '%',
+                width: '0%',
+                height: '0%'
+            });
+            $imageWrapper.append($tempBox);
+            $processDrawnBoxBtn.hide();
+            setStatus('Drawing: Click again on the image to finish the box.', 'text-info');
+        } else {
+            isDrawing = false;
+            if (drawnBoxCoords && (drawnBoxCoords.perWidth > 0.005 && drawnBoxCoords.perHeight > 0.005)) {
+                $processDrawnBoxBtn.show();
+                setStatus('Box drawn! Click "Process Box" to run OCR.', 'text-success');
+            } else {
+                $('#ocrTempDrawBox').remove();
+                drawnBoxCoords = null;
+                $processDrawnBoxBtn.hide();
+                setStatus('Drawn box was too small. Click to start drawing again.', 'text-warning');
+            }
+        }
+    });
+
+    $(document).on('mousemove touchmove', function (e) {
+        if (!isDrawingMode || !isDrawing) return;
+
+        var coords = getRelativeCoords(e, $imageWrapper[0]);
+        var currentX = Math.max(0, Math.min(coords.x, $imageWrapper.width()));
+        var currentY = Math.max(0, Math.min(coords.y, $imageWrapper.height()));
+
+        var left = Math.min(drawStartX, currentX);
+        var top = Math.min(drawStartY, currentY);
+        var width = Math.abs(drawStartX - currentX);
+        var height = Math.abs(drawStartY - currentY);
+
+        var wrapperW = $imageWrapper.width();
+        var wrapperH = $imageWrapper.height();
+
+        $('#ocrTempDrawBox').css({
+            left: (left / wrapperW) * 100 + '%',
+            top: (top / wrapperH) * 100 + '%',
+            width: (width / wrapperW) * 100 + '%',
+            height: (height / wrapperH) * 100 + '%'
+        });
+
+        drawnBoxCoords = {
+            centerPerX: (left + width / 2) / wrapperW,
+            centerPerY: (top + height / 2) / wrapperH,
+            perWidth: width / wrapperW,
+            perHeight: height / wrapperH
+        };
+    });
+
+    $processDrawnBoxBtn.on('click', function () {
+        if (!drawnBoxCoords) return;
+
+        setStatus('Processing OCR on selected area...', 'text-warning');
+        $processDrawnBoxBtn.prop('disabled', true);
+
+        frappe.call({
+            method: 'veerpasli.veerpasli.doctype.pdf_page.pdf_page.ocr_crop',
+            args: {
+                page_id: pageId,
+                box: JSON.stringify(drawnBoxCoords)
+            },
+            callback: function (r) {
+                $processDrawnBoxBtn.prop('disabled', false);
+                if (r.exc) {
+                    setStatus('OCR processing failed: ' + (r.exc.message || r.message), 'text-danger');
+                    return;
+                }
+
+                var result = r.message;
+                if (result && result.boundingBox) {
+                    var newBox = createBox({
+                        text: result.text || '',
+                        boundingBox: result.boundingBox,
+                        status: 'original'
+                    }, 'original');
+
+                    boxes.push(newBox);
+
+                    if (jsonData && Array.isArray(jsonData.segments)) {
+                        jsonData.segments.push({
+                            text: newBox.text,
+                            boundingBox: newBox.boundingBox
+                        });
+                    }
+
+                    persistJsonData();
+                    renderBoxes();
+                    renderControls();
+
+                    setStatus('Successfully processed crop: "' + (newBox.text || '(empty)') + '"', 'text-success');
+
+                    $('#ocrTempDrawBox').remove();
+                    drawnBoxCoords = null;
+                    $processDrawnBoxBtn.hide();
+
+                    // Automatically switch off drawing mode
+                    isDrawingMode = false;
+                    $drawBoxBtn.removeClass('btn-info').addClass('btn-outline-info').text('Draw Box');
+                    $imageWrapper.removeClass('ocr-drawing-mode');
+                } else {
+                    setStatus('No text found in selected area.', 'text-warning');
+                }
+            },
+            error: function () {
+                $processDrawnBoxBtn.prop('disabled', false);
+                setStatus('Error communicating with OCR server.', 'text-danger');
+            }
+        });
     });
 
     $(document).on('keydown.ocrChecker', function (event) {
