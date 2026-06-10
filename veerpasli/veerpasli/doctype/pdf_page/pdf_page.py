@@ -310,8 +310,9 @@ def process_ocr_box(image_url, box):
 			if old_person_village and old_person_village != village_doc.name:
 				cleanup_village_if_orphaned(old_person_village)
 
-			# NOTE: collector_locations is intentionally NOT touched here.
-			# Location is derived from the image filename at creation time only.
+			# Add the location to collector locations if not already present
+			person_doc = frappe.get_doc('Person', person_id)
+			add_collector_location(person_doc, location_doc.name)
 		else:
 			village_doc = get_or_create_village(village_name)
 			person = get_or_create_person(
@@ -933,11 +934,12 @@ def get_or_create_person(name, village_doc, mobile_number, is_collector=False, l
 
 
 def add_collector_location(person, location_name):
-	if not hasattr(person, 'collector_locations') or not person.collector_locations:
+	if not hasattr(person, 'collector_locations'):
 		return
-	for row in person.collector_locations:
-		if row.location == location_name:
-			return
+	if person.collector_locations:
+		for row in person.collector_locations:
+			if row.location == location_name:
+				return
 	person.append('collector_locations', {'location': location_name})
 	person.save(ignore_permissions=True)
 
