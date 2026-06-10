@@ -32,10 +32,11 @@ def process_image(docname):
 	script_path = os.path.abspath(os.path.join(frappe.get_app_path("veerpasli"), "..", "ocr.js"))
 	
 	nvm_sh_path = os.path.expanduser("~/.nvm/nvm.sh")
-	cmd = f"source {nvm_sh_path} && nvm exec 24 node {script_path} {image_path}"
+	cmd = f"source {nvm_sh_path} && nvm exec 24 node {script_path} '{image_path}'"
 	
 	try:
 		result = subprocess.run([cmd], shell=True, capture_output=True, text=True, executable="/bin/bash")
+		print(result, 'result of ocr')
 		if result.returncode == 0:
 			json_web_path = os.path.splitext(doc.page_file)[0] + '.json'
 			json_disk_path = frappe.get_site_path(json_web_path.lstrip('/'))
