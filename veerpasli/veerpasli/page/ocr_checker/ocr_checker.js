@@ -206,16 +206,28 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
         return box.fields.name && box.fields.village && (box.fields.amount || box.fields.phone);
     }
 
-    function tokenizeText(text) {
+    function tokenizeText(text, splitByHyphen) {
         var tokens = [];
         var regex = /(\S+\s*)/g;
         var match;
         while ((match = regex.exec(text))) {
             var word = match[1];
-            tokens.push({
-                value: word,
-                label: word.trim()
-            });
+            if (splitByHyphen) {
+                var parts = word.split(/([-—–])/);
+                parts.forEach(function (part) {
+                    if (part !== '') {
+                        tokens.push({
+                            value: part,
+                            label: part.trim()
+                        });
+                    }
+                });
+            } else {
+                tokens.push({
+                    value: word,
+                    label: word.trim()
+                });
+            }
         }
         return tokens;
     }
@@ -377,7 +389,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
 
     function openBoxEditorModal(box) {
         box.fields.hastes = box.fields.hastes || [];
-        var tokens = tokenizeText(box.text || '');
+        var tokens = tokenizeText(box.text || '', true);
         
         var currentOffset = 0;
         tokens.forEach(function (token) {
@@ -646,6 +658,9 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                 }).map(function (token) {
                     return token.value;
                 }).join('').trim();
+                
+                // Clean up whitespace around hyphens/mdashes/ndashes (e.g. "nirona - chota" -> "nirona-chota")
+                assignedValue = assignedValue.replace(/\s*([-—–])\s*/g, '$1');
                 var assignedField = activeField;
                 if (assignedField.startsWith('haste_')) {
                     var idx = parseInt(assignedField.split('_')[1], 10);
