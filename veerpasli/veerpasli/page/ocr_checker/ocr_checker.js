@@ -151,7 +151,11 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                  z-index: 20;
             }
             .ocr-checker-field { margin-bottom: 1rem; }
-            .ocr-token { display: inline-block; padding: 0.25rem 0.5rem; margin: 0.2rem; border: 1px solid #dee2e6; background-color: #f8f9fa; border-radius: 4px; transition: all 0.15s ease-in-out; cursor: pointer; font-family: monospace; font-size: 0.95rem; }
+            .ocr-token { display: inline-flex; align-items: center; position: relative; padding: 0.25rem 0.5rem; margin: 0.2rem; border: 1px solid #dee2e6; background-color: #f8f9fa; border-radius: 4px; transition: all 0.15s ease-in-out; cursor: pointer; font-family: monospace; font-size: 0.95rem; }
+            .ocr-token .ocr-token-delete { display: none; position: absolute; top: -7px; right: -7px; width: 16px; height: 16px; border-radius: 50%; background: #dc3545; color: #fff; font-size: 10px; line-height: 16px; text-align: center; cursor: pointer; z-index: 5; border: 1.5px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
+            .ocr-token:hover .ocr-token-delete { display: block; }
+            .ocr-token-new-input { display: inline-block; border: none; outline: none; font-family: monospace; font-size: 0.95rem; min-width: 60px; max-width: 200px; background: transparent; vertical-align: middle; padding: 0.25rem 0.1rem; }
+            .ocr-token-order { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; border-radius: 50%; background: rgba(255,255,255,0.85); color: #212529; font-size: 9px; font-weight: 700; line-height: 1; margin-left: 4px; padding: 0 3px; box-shadow: 0 1px 2px rgba(0,0,0,0.2); flex-shrink: 0; }
             .ocr-token:hover { background-color: #e9ecef; border-color: #adb5bd; }
             .ocr-token-selected { background: #212529; color: #fff; border-color: #212529; }
             .ocr-token-name.ocr-token-selected { background-color: #0d6efd; color: #fff; border-color: #0d6efd; }
@@ -403,6 +407,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
     function openBoxEditorModal(box) {
         box.fields.hastes = box.fields.hastes || [];
         var tokens = tokenizeText(box.text || '', true);
+        var originalBoxText = box.text || ''; // saved for Redo/Reset
 
         var currentOffset = 0;
         tokens.forEach(function (token) {
@@ -411,54 +416,58 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             currentOffset = token.end;
         });
 
-        var assignedTokenIndices = {};
-        var matchedRanges = [];
-        var queries = [];
-        if (box.fields.name) queries.push({ key: 'name', value: box.fields.name.trim() });
-        if (box.fields.village) queries.push({ key: 'village', value: box.fields.village.trim() });
-        if (box.fields.amount) queries.push({ key: 'amount', value: box.fields.amount.trim() });
-        if (box.fields.phone) queries.push({ key: 'phone', value: box.fields.phone.trim() });
-        (box.fields.hastes || []).forEach(function (h, idx) {
-            if (h.name) {
-                queries.push({ key: 'haste_' + idx, value: h.name.trim() });
-            }
-        });
+        // Rebuild token offsets after any mutation (delete / add)
+        function rebuildTokenOffsets() {
+            var offset = 0;
+            tokens.forEach(function (t) {
+                t.start = offset;
+                t.end = offset + t.value.length;
+                offset = t.end;
+            });
+        }
 
-        queries.sort(function (a, b) {
-            return b.value.length - a.value.length;
-        });
+        // Sync box.text from the current tokens array
+        function rebuildBoxText() {
+            box.text = tokens.map(function (t) { return t.value; }).join('');
+            rebuildTokenOffsets();
+        }
 
-        queries.forEach(function (q) {
-            var val = q.value;
-            var pos = 0;
-            while (true) {
-                var idx = (box.text || '').indexOf(val, pos);
-                if (idx === -1) break;
+        // Remove a token by its current index in the tokens array
+        function deleteToken(tokenIndex) {
+            // Adjust selectedTokenIds — preserve click order, shift indices > deleted
+            selectedTokenIds = selectedTokenIds
+                .filter(function (i) { return i !== tokenIndex; })
+                .map(function (i) { return i > tokenIndex ? i - 1 : i; });
 
-                var start = idx;
-                var end = idx + val.length;
+            tokens.splice(tokenIndex, 1);
+            rebuildBoxText();
+            persistJsonData(); // Save updated box.text to DB
+            redraw();
+        }
 
-                var overlaps = matchedRanges.some(function (r) {
-                    return (start < r.end && end > r.start);
-                });
-
-                if (!overlaps) {
-                    matchedRanges.push({ start: start, end: end });
-                    var tokenIndices = [];
-                    tokens.forEach(function (token, tIdx) {
-                        if (token.start >= start && token.end <= end + 1) {
-                            tokenIndices.push(tIdx);
-                        }
-                    });
-                    assignedTokenIndices[q.key] = tokenIndices;
-                    break;
+        // Add a new token word
+        function addNewToken(word) {
+            if (!word) return;
+            // Ensure the last existing token ends with a space so joining tokens
+            // doesn't merge the new word with the previous one (OCR last token
+            // often has no trailing whitespace, e.g. "1000" not "1000 ").
+            if (tokens.length > 0) {
+                var last = tokens[tokens.length - 1];
+                if (!/\s$/.test(last.value)) {
+                    last.value += ' ';
                 }
-                pos = idx + 1;
             }
-        });
+            var newToken = { value: word + ' ', label: word };
+            tokens.push(newToken);
+            rebuildBoxText();
+            persistJsonData(); // Save updated box.text to DB
+            redraw();
+        }
 
         var activeField = null;
-        var selectedTokenIds = new Set();
+        // Ordered array — preserves the exact click sequence so assigned value
+        // follows user intent, not token position in the array.
+        var selectedTokenIds = [];
         var selectedEntryType = box.fields.entryType || 'Donation';
         if (selectedEntryType.toLowerCase() === 'collector') {
             selectedEntryType = 'Collector';
@@ -481,34 +490,33 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             });
             html += '</div>';
 
-            // 2. Text Box
+            // 2. Text Box — box.text only holds unassigned tokens (assigned ones
+            // are spliced out on Assign so no filtering needed here)
             html += '<div class="mb-2"><strong>Text Box</strong></div>';
-            var assignedTokenSet = new Set();
-            Object.keys(assignedTokenIndices).forEach(function (key) {
-                (assignedTokenIndices[key] || []).forEach(function (idx) {
-                    assignedTokenSet.add(idx);
-                });
-            });
-            var remainingTokens = tokens.filter(function (token, index) {
-                return !assignedTokenSet.has(index);
-            });
 
-            html += '<div class="ocr-token-container mb-4" style="padding: 0.75rem; border: 1px solid #dee2e6; border-radius: 4px; background: #fff; min-height: 60px; max-height: 150px; overflow-y: auto;">';
-            if (remainingTokens.length > 0) {
-                remainingTokens.forEach(function (token) {
-                    var originalIndex = tokens.indexOf(token);
-                    var cssClass = 'ocr-token';
-                    if (selectedTokenIds.has(originalIndex)) {
-                        cssClass += ' ocr-token-selected';
-                        if (activeField) {
-                            cssClass += ' ocr-token-' + activeField;
-                        }
+            html += '<div class="ocr-token-container mb-4" style="display: flex; flex-wrap: wrap; align-items: center; padding: 0.5rem; border: 1px solid #dee2e6; border-radius: 4px; background: #fff; min-height: 60px; max-height: 150px; overflow-y: auto; cursor: text;" id="ocrTokenContainer">';
+            tokens.forEach(function (token, index) {
+                var cssClass = 'ocr-token';
+                if (selectedTokenIds.indexOf(index) !== -1) {
+                    cssClass += ' ocr-token-selected';
+                    if (activeField) {
+                        cssClass += ' ocr-token-' + activeField;
                     }
-                    html += '<span class="' + cssClass + '" data-token-index="' + originalIndex + '">' + frappe.utils.escape_html(token.value) + '</span>';
-                });
-            } else {
-                html += '<span class="text-muted">All text has been assigned to fields.</span>';
+                }
+                html += '<span class="' + cssClass + '" data-token-index="' + index + '">';
+                html += frappe.utils.escape_html(token.value);
+                var selPos = selectedTokenIds.indexOf(index);
+                if (selPos !== -1) {
+                    html += '<span class="ocr-token-order">' + (selPos + 1) + '</span>';
+                }
+                html += '<span class="ocr-token-delete" data-delete-index="' + index + '" title="Delete token">&times;</span>';
+                html += '</span>';
+            });
+            if (tokens.length === 0) {
+                html += '<span class="text-muted" id="ocrTokenEmptyHint" style="margin-right:4px;">Type to add tokens&hellip;</span>';
             }
+            // Inline editable input appended after all tokens
+            html += '<input type="text" id="ocrNewTokenInput" class="ocr-token-new-input" placeholder="type &amp; press space" autocomplete="off" />';
             html += '</div>';
 
             // 3. Tag Selection
@@ -662,8 +670,13 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                 box.fields[field] = '';
             });
             box.fields.hastes = [];
-            assignedTokenIndices = {};
-            selectedTokenIds.clear();
+            // Restore box.text and tokens to the state when the modal was first opened
+            box.text = originalBoxText;
+            tokens.length = 0;
+            tokenizeText(originalBoxText, true).forEach(function (t) { tokens.push(t); });
+            rebuildTokenOffsets();
+            persistJsonData();
+            selectedTokenIds.length = 0;
             activeField = null;
             redraw();
             renderBoxes();
@@ -680,38 +693,74 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             });
             dialog.fields_dict.content.$wrapper.find('.ocr-field-select').on('click', function () {
                 activeField = $(this).attr('data-field');
-                selectedTokenIds.clear();
+                selectedTokenIds.length = 0;
                 redraw();
             });
-            dialog.fields_dict.content.$wrapper.find('.ocr-token').on('click', function () {
-                if (!activeField) {
-                    return;
-                }
+
+            // Token click: select for field assignment (but not if clicking the delete ×)
+            dialog.fields_dict.content.$wrapper.find('.ocr-token').on('click', function (e) {
+                // Ignore clicks on the delete button itself
+                if ($(e.target).hasClass('ocr-token-delete')) return;
+                if (!activeField) return;
                 var index = parseInt($(this).attr('data-token-index'), 10);
-                if (selectedTokenIds.has(index)) {
-                    selectedTokenIds.delete(index);
+                var pos = selectedTokenIds.indexOf(index);
+                if (pos !== -1) {
+                    selectedTokenIds.splice(pos, 1); // deselect, preserve order of others
                 } else {
-                    selectedTokenIds.add(index);
+                    selectedTokenIds.push(index);   // select in click order
                 }
                 redraw();
             });
+
+            // Token delete × button
+            dialog.fields_dict.content.$wrapper.find('.ocr-token-delete').on('click', function (e) {
+                e.stopPropagation();
+                var index = parseInt($(this).attr('data-delete-index'), 10);
+                deleteToken(index);
+            });
+
+            // Inline new-token input: pressing Space or Enter commits the word as a new token
+            var $input = dialog.fields_dict.content.$wrapper.find('#ocrNewTokenInput');
+            $input.on('keydown', function (e) {
+                if (e.key === ' ' || e.key === 'Enter') {
+                    e.preventDefault();
+                    var word = $input.val().trim();
+                    if (word) {
+                        addNewToken(word);
+                    } else {
+                        // empty space — just focus stays
+                    }
+                }
+            });
+            // Clicking anywhere inside the container focuses the input
+            dialog.fields_dict.content.$wrapper.find('#ocrTokenContainer').on('click', function (e) {
+                if (e.target === this || $(e.target).is('#ocrTokenEmptyHint')) {
+                    $input.focus();
+                }
+            });
+            // Auto-focus if no tokens remain so typing feels natural
+            if (tokens.length === 0) {
+                setTimeout(function () { $input.focus(); }, 50);
+            }
+
             dialog.fields_dict.content.$wrapper.find('#ocrCheckerAssignToken').on('click', function () {
                 if (!activeField) {
                     frappe.msgprint('Choose a field before assigning text.');
                     return;
                 }
-                if (!selectedTokenIds.size) {
+                if (!selectedTokenIds.length) {
                     frappe.msgprint('Select text tokens before assigning.');
                     return;
                 }
-                var assignedValue = tokens.filter(function (token, index) {
-                    return selectedTokenIds.has(index);
-                }).map(function (token) {
-                    return token.value;
+                // Build value in the ORDER the user clicked — not token array order
+                var assignedValue = selectedTokenIds.map(function (index) {
+                    return tokens[index] ? tokens[index].value : '';
                 }).join('').trim();
 
                 // Clean up whitespace around hyphens/mdashes/ndashes (e.g. "nirona - chota" -> "nirona-chota")
                 assignedValue = assignedValue.replace(/\s*([-—–])\s*/g, '$1');
+                // Assign: set the field value then physically remove those tokens from
+                // box.text so they never reappear in the text box on next modal open.
                 var assignedField = activeField;
                 if (assignedField.startsWith('haste_')) {
                     var idx = parseInt(assignedField.split('_')[1], 10);
@@ -720,17 +769,24 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                     box.fields[assignedField] = assignedValue;
                 }
 
-                assignedTokenIndices[assignedField] = Array.from(selectedTokenIds);
+                // Splice selected tokens out (highest index first to keep lower indices stable)
+                var indicesToRemove = selectedTokenIds.slice().sort(function (a, b) { return b - a; });
+                indicesToRemove.forEach(function (i) { tokens.splice(i, 1); });
+                rebuildBoxText();
+                // NOTE: No persistJsonData() here — calling it on every assign creates
+                // a race condition where a stale async write can arrive AFTER the
+                // submit's saveVerifiedBoxToJson write, resurrecting the old merged box.
+                // The final DB write happens in saveVerifiedBoxToJson on submit.
 
                 activeField = null;
-                selectedTokenIds.clear();
+                selectedTokenIds.length = 0;
                 redraw();
                 renderBoxes();
                 renderControls();
                 setStatus('Tagged text to ' + assignedField + '.', 'text-success');
             });
             dialog.fields_dict.content.$wrapper.find('#ocrCheckerClearTokenSelection').on('click', function () {
-                selectedTokenIds.clear();
+                selectedTokenIds.length = 0;
                 redraw();
             });
             dialog.fields_dict.content.$wrapper.find('#ocrCheckerAddHaste').on('click', function () {
@@ -743,23 +799,6 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             dialog.fields_dict.content.$wrapper.find('.ocr-remove-haste').on('click', function () {
                 var index = parseInt($(this).attr('data-index'), 10);
                 box.fields.hastes.splice(index, 1);
-
-                delete assignedTokenIndices['haste_' + index];
-                var newAssigned = {};
-                Object.keys(assignedTokenIndices).forEach(function (key) {
-                    if (key.startsWith('haste_')) {
-                        var idx = parseInt(key.split('_')[1], 10);
-                        if (idx > index) {
-                            newAssigned['haste_' + (idx - 1)] = assignedTokenIndices[key];
-                        } else {
-                            newAssigned[key] = assignedTokenIndices[key];
-                        }
-                    } else {
-                        newAssigned[key] = assignedTokenIndices[key];
-                    }
-                });
-                assignedTokenIndices = newAssigned;
-
                 if (activeField === 'haste_' + index) {
                     activeField = null;
                 } else if (activeField && activeField.startsWith('haste_')) {
