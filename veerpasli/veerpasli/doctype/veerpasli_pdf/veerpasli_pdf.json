@@ -6,9 +6,14 @@
  "engine": "InnoDB",
  "field_order": [
   "document_pdf",
-  "location",
   "year",
-  "page_number_range"
+  "page_number_range",
+  "section_break_location",
+  "location_english",
+  "translate",
+  "column_break_loc",
+  "location_gujarati",
+  "location"
  ],
  "fields": [
   {
@@ -16,12 +21,6 @@
    "fieldtype": "Attach",
    "in_list_view": 1,
    "label": "Document PDF",
-   "reqd": 1
-  },
-  {
-   "fieldname": "location",
-   "fieldtype": "Data",
-   "label": "Location",
    "reqd": 1
   },
   {
@@ -35,12 +34,45 @@
    "fieldtype": "Data",
    "label": "Page Number Range",
    "reqd": 1
+  },
+  {
+   "fieldname": "section_break_location",
+   "fieldtype": "Section Break",
+   "label": "Location Details"
+  },
+  {
+   "fieldname": "location_english",
+   "fieldtype": "Data",
+   "label": "English Location",
+   "reqd": 1
+  },
+  {
+   "fieldname": "translate",
+   "fieldtype": "Button",
+   "label": "Translate"
+  },
+  {
+   "fieldname": "column_break_loc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "location_gujarati",
+   "fieldtype": "Data",
+   "label": "Gujarati Location",
+   "reqd": 1
+  },
+  {
+   "fieldname": "location",
+   "fieldtype": "Link",
+   "label": "Location",
+   "options": "Location",
+   "hidden": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-03 22:05:14.545557",
+ "modified": "2026-06-11 10:37:00.000000",
  "modified_by": "Administrator",
  "module": "Veerpasli",
  "name": "Veerpasli PDF",

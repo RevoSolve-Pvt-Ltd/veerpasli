@@ -5,7 +5,8 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "location_name"
+  "location_name",
+  "location_name_english"
  ],
  "fields": [
   {
@@ -14,12 +15,17 @@
    "in_list_view": 1,
    "label": "Location Name",
    "reqd": 1
+  },
+  {
+   "fieldname": "location_name_english",
+   "fieldtype": "Data",
+   "label": "Location Name English"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-02 10:36:59.228820",
+ "modified": "2026-06-11 16:20:47.978525",
  "modified_by": "Administrator",
  "module": "Veerpasli",
  "name": "Location",
@@ -40,6 +46,7 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
+ "search_fields": "location_name_english",
  "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",

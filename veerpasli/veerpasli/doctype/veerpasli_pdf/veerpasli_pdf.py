@@ -5,10 +5,84 @@ import frappe
 from frappe.model.document import Document
 import os
 import re
+import requests
 import pymupdf as fitz
 from veerpasli.veerpasli.utils.pdf_splitter import normalize_location
 
+
+def get_or_create_location(gujarati_name, english_name):
+	gujarati_name = gujarati_name.strip()
+	english_name = english_name.strip() if english_name else ""
+	
+	# Try to find by gujarati name first
+	docname = frappe.db.get_value('Location', {'location_name': gujarati_name})
+	if not docname and english_name:
+		# Try to find by english name
+		docname = frappe.db.get_value('Location', {'location_name_english': english_name})
+		
+	if docname:
+		location = frappe.get_doc('Location', docname)
+		if english_name and location.location_name_english != english_name:
+			location.location_name_english = english_name
+			location.save(ignore_permissions=True)
+		return location
+
+	location = frappe.get_doc({
+		'doctype': 'Location',
+		'location_name': gujarati_name,
+		'location_name_english': english_name
+	})
+	location.insert(ignore_permissions=True)
+	return location
+
+
+@frappe.whitelist()
+def translate_location(text, source_lang, target_lang):
+	if not text:
+		return ""
+	try:
+		url = "https://translate.googleapis.com/translate_a/single"
+		params = {
+			"client": "gtx",
+			"sl": source_lang,
+			"tl": target_lang,
+			"dt": "t",
+			"q": text
+		}
+		response = requests.get(url, params=params, timeout=10)
+		response.raise_for_status()
+		res_json = response.json()
+		if res_json and len(res_json) > 0 and len(res_json[0]) > 0:
+			translated_text = res_json[0][0][0]
+			return translated_text
+	except Exception as e:
+		frappe.log_error(f"Translation failed: {str(e)}")
+	return ""
+
+
 class VeerpasliPDF(Document):
+	def validate(self):
+		if not self.location_english and not self.location_gujarati:
+			frappe.throw("Please enter either English Location or Gujarati Location.")
+		
+		if self.location_english and not self.location_gujarati:
+			translated = translate_location(self.location_english, "en", "gu")
+			if translated:
+				self.location_gujarati = translated
+			else:
+				frappe.throw("Failed to automatically translate English Location to Gujarati. Please fill Gujarati Location manually.")
+				
+		elif self.location_gujarati and not self.location_english:
+			translated = translate_location(self.location_gujarati, "gu", "en")
+			if translated:
+				self.location_english = translated
+			else:
+				frappe.throw("Failed to automatically translate Gujarati Location to English. Please fill English Location manually.")
+				
+		# Create/Get Location and link it
+		location_doc = get_or_create_location(self.location_gujarati, self.location_english)
+		self.location = location_doc.name
+
 	@frappe.whitelist()
 	def send_to_ocr(self):
 		if not self.document_pdf:
@@ -27,7 +101,13 @@ class VeerpasliPDF(Document):
 		with open(file_path, 'rb') as f:
 			file_bytes = f.read()
 
-		location = normalize_location(self.location)
+		loc_english = self.location_english
+		if not loc_english and self.location:
+			loc_english = frappe.db.get_value('Location', self.location, 'location_name_english')
+		if not loc_english:
+			loc_english = self.location or "unknown"
+
+		location = normalize_location(loc_english)
 		year = self.year
 		
 		# Parse start page from range (e.g. "11-20")
