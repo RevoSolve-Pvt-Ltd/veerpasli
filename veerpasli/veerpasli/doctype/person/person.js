@@ -3,6 +3,8 @@
 
 frappe.ui.form.on("Person", {
 	refresh(frm) {
+		toggle_collector_fields(frm);
+
 		// Hide the standard child table grid to keep the UI clean
 		if (frm.fields_dict.tagged_boxes) {
 			frm.fields_dict.tagged_boxes.grid.wrapper.hide();
@@ -158,5 +160,15 @@ frappe.ui.form.on("Person", {
 				'<div class="text-muted" style="padding: 20px; border: 1px dashed #d1d8dd; border-radius: 8px; text-align: center; background: #fdfdfd;">No OCR validation images available for this person.</div>'
 			);
 		}
+	},
+	is_collector(frm) {
+		toggle_collector_fields(frm);
 	}
 });
+
+function toggle_collector_fields(frm) {
+	const is_collector = frm.doc.is_collector === "true";
+	frm.toggle_reqd("collector_locations", is_collector);
+	frm.toggle_display("collector_locations", is_collector);
+	frm.toggle_display("section_break_mstn", is_collector);
+}
