@@ -7,21 +7,24 @@
  "field_order": [
   "donor_information_section",
   "takti",
+  "takti_english",
   "column_break_chxz",
   "amount_gujarati",
   "amount_english",
   "area_information_section",
   "village",
+  "village_english",
   "column_break_mwin",
   "location",
+  "location_english",
   "collector_information_section",
   "collector",
+  "collector_english",
   "donors_section",
   "list_of_donors",
   "validation_image_section",
   "ocr_image_url",
   "ocr_preview",
-  "column_break_val",
   "ocr_box_x",
   "ocr_box_y",
   "ocr_box_w",
@@ -48,8 +51,7 @@
    "fieldname": "amount_english",
    "fieldtype": "Int",
    "in_list_view": 1,
-   "label": "Amount English",
-   "show_sum": 1
+   "label": "Amount English"
   },
   {
    "fieldname": "donor_information_section",
@@ -145,12 +147,38 @@
    "fieldtype": "Float",
    "label": "OCR Box Height",
    "read_only": 1
+  },
+  {
+   "fetch_from": "village.english_name",
+   "fieldname": "village_english",
+   "fieldtype": "Data",
+   "label": "Village English",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "location.location_name_english",
+   "fieldname": "location_english",
+   "fieldtype": "Data",
+   "label": "Location English",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "takti.english_fullname",
+   "fieldname": "takti_english",
+   "fieldtype": "Read Only",
+   "label": "Takti English"
+  },
+  {
+   "fetch_from": "collector.english_fullname",
+   "fieldname": "collector_english",
+   "fieldtype": "Read Only",
+   "label": "Collector English"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-03 20:52:36.149470",
+ "modified": "2026-06-12 19:03:22.303689",
  "modified_by": "Administrator",
  "module": "Veerpasli",
  "name": "Donation",

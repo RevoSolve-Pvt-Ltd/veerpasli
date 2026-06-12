@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "{location_english}.-.{year}.-.{page_number_range}",
  "creation": "2026-06-03 20:22:14.447604",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -67,10 +68,11 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-11 10:37:00.000000",
+ "modified": "2026-06-12 20:52:27.884318",
  "modified_by": "Administrator",
  "module": "Veerpasli",
  "name": "Veerpasli PDF",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {
