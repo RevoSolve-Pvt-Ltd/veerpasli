@@ -53,6 +53,7 @@
    "fieldname": "location_gujarati",
    "fieldtype": "Data",
    "label": "Gujarati Location",
+   "read_only": 1,
    "reqd": 1
   },
   {
@@ -60,7 +61,7 @@
    "fieldtype": "Link",
    "label": "Location",
    "options": "Location",
-   "hidden": 1
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,

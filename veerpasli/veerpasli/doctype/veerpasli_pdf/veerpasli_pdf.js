@@ -22,9 +22,8 @@ frappe.ui.form.on("Veerpasli PDF", {
 			});
 		}
 
-		// Setup suggestions on English and Gujarati location fields
+		// Setup suggestions on English location field (populates Gujarati location field)
 		setup_suggestions(frm, "location_english", "location_gujarati", "gu");
-		setup_suggestions(frm, "location_gujarati", "location_english", "en");
 	},
 	location_english(frm) {
 		if (!frm.doc.location_english && frm.doc.location_gujarati) {
