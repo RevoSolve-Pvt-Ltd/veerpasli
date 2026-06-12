@@ -633,7 +633,8 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                         centerPerY: box.boundingBox ? box.boundingBox.centerPerY : null,
                         perWidth: box.boundingBox ? box.boundingBox.perWidth : null,
                         perHeight: box.boundingBox ? box.boundingBox.perHeight : null
-                    })
+                    }),
+                    page_id: pageId
                 },
                 callback: function (r) {
                     if (r.exc) {

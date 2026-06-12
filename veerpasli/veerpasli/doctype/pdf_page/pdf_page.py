@@ -6,6 +6,7 @@ from frappe.model.document import Document
 import subprocess
 import os
 import re
+import requests
 from urllib.parse import urlparse, unquote
 
 class Pdfpage(Document):
@@ -106,7 +107,7 @@ def process_image(docname):
 		frappe.db.commit()
 
 @frappe.whitelist()
-def process_ocr_page(image_url, boxes):
+def process_ocr_page(image_url, boxes, page_id=None):
 	if not image_url:
 		frappe.throw("Image URL is required to determine page location.")
 
@@ -116,7 +117,10 @@ def process_ocr_page(image_url, boxes):
 	if not isinstance(boxes, list):
 		frappe.throw("Invalid boxes payload.")
 
-	location_name = extract_location_from_image_url(image_url)
+	if page_id:
+		location_name = extract_location_from_image_url(page_id)
+	else:
+		location_name = extract_location_from_image_url(image_url)
 	if not location_name:
 		frappe.throw("Unable to parse location from image filename.")
 
@@ -223,7 +227,7 @@ def process_ocr_page(image_url, boxes):
 
 
 @frappe.whitelist()
-def process_ocr_box(image_url, box):
+def process_ocr_box(image_url, box, page_id=None):
 	if not image_url:
 		frappe.throw("Image URL is required to determine page location.")
 
@@ -253,7 +257,10 @@ def process_ocr_box(image_url, box):
 	if not name:
 		frappe.throw("Name is required.")
 
-	location_name = extract_location_from_image_url(image_url)
+	if page_id:
+		location_name = extract_location_from_image_url(page_id)
+	else:
+		location_name = extract_location_from_image_url(image_url)
 	if not location_name:
 		frappe.throw("Unable to parse location from image filename.")
 
@@ -284,10 +291,11 @@ def process_ocr_box(image_url, box):
 
 		if person_id and frappe.db.exists('Person', person_id):
 			# Step 1: Rename primary key first (also syncs gujarati_fullname via update_autoname_field)
-			if person_id != name:
+			guj_name, eng_name = get_translated_names(name)
+			if person_id != guj_name:
 				try:
-					target_exists = frappe.db.exists('Person', name)
-					person_id = frappe.rename_doc('Person', person_id, name, force=True, merge=target_exists, ignore_permissions=True)
+					target_exists = frappe.db.exists('Person', guj_name)
+					person_id = frappe.rename_doc('Person', person_id, guj_name, force=True, merge=target_exists, ignore_permissions=True)
 				except Exception:
 					frappe.log_error(frappe.get_traceback(), 'Collector rename failed in process_ocr_box')
 
@@ -298,8 +306,8 @@ def process_ocr_box(image_url, box):
 			# Step 3: Update all remaining fields directly in DB (safe, bypasses unique constraint on autoname field)
 			current_mobile = frappe.db.get_value('Person', person_id, 'mobile_number') or ''
 			frappe.db.set_value('Person', person_id, {
-				'gujarati_fullname': name,
-				'english_fullname': name,
+				'gujarati_fullname': guj_name,
+				'english_fullname': eng_name,
 				'mobile_number': normalize_mobile_number(phone) if phone else current_mobile,
 				'village_gujarati_name': village_doc.name,
 				'village_english_name': village_doc.english_name,
@@ -374,18 +382,19 @@ def process_ocr_box(image_url, box):
 			if donation_count_for_donor <= 1:
 				# Step 1: Rename primary key first (also syncs gujarati_fullname via update_autoname_field)
 				donor_id = old_donor_id
-				if old_donor_id != name:
+				guj_name, eng_name = get_translated_names(name)
+				if old_donor_id != guj_name:
 					try:
-						target_exists = frappe.db.exists('Person', name)
-						donor_id = frappe.rename_doc('Person', old_donor_id, name, force=True, merge=target_exists, ignore_permissions=True)
+						target_exists = frappe.db.exists('Person', guj_name)
+						donor_id = frappe.rename_doc('Person', old_donor_id, guj_name, force=True, merge=target_exists, ignore_permissions=True)
 					except Exception:
 						frappe.log_error(frappe.get_traceback(), 'Person rename failed in process_ocr_box')
 
 				# Step 2: Update all remaining fields directly in DB (bypasses unique constraint on autoname field)
 				current_mobile = frappe.db.get_value('Person', donor_id, 'mobile_number') or ''
 				frappe.db.set_value('Person', donor_id, {
-					'gujarati_fullname': name,
-					'english_fullname': name,
+					'gujarati_fullname': guj_name,
+					'english_fullname': eng_name,
 					'mobile_number': normalize_mobile_number(phone) if phone else current_mobile,
 					'village_gujarati_name': village_doc.name,
 					'village_english_name': village_doc.english_name,
@@ -730,7 +739,7 @@ def update_ocr_boxes(page_id, boxes):
 		if ref['person'] and ref['person'] not in new_persons:
 			if ref['entry_type'] == 'collector':
 				try:
-					location_name = extract_location_from_image_url(doc.image_url)
+					location_name = extract_location_from_image_url(doc.name)
 					remove_person_tagged_box('Collector', f"{ref['person']}:{location_name}")
 					cleanup_person_if_orphaned(ref['person'])
 				except Exception:
@@ -797,26 +806,97 @@ def normalize_mobile_number(mobile):
 
 def get_or_create_location(location_name):
 	location_name = location_name.strip()
-	docname = frappe.db.get_value('Location', {'location_name': location_name})
+	guj_name, eng_name = get_translated_names(location_name)
+	
+	docname = frappe.db.get_value('Location', {'location_name': guj_name})
+	if not docname and eng_name:
+		docname = frappe.db.get_value('Location', {'location_name_english': eng_name})
+		
 	if docname:
-		return frappe.get_doc('Location', docname)
+		location = frappe.get_doc('Location', docname)
+		updated = False
+		if guj_name and location.location_name != guj_name:
+			location.location_name = guj_name
+			updated = True
+		if eng_name and location.location_name_english != eng_name:
+			location.location_name_english = eng_name
+			updated = True
+		if updated:
+			location.save(ignore_permissions=True)
+		return location
+
 	location = frappe.get_doc({
 		'doctype': 'Location',
-		'location_name': location_name
+		'location_name': guj_name,
+		'location_name_english': eng_name
 	})
 	location.insert(ignore_permissions=True)
 	return location
 
 
+def translate_text(text, source_lang, target_lang):
+	if not text:
+		return ""
+	try:
+		url = "https://translate.googleapis.com/translate_a/single"
+		params = {
+			"client": "gtx",
+			"sl": source_lang,
+			"tl": target_lang,
+			"dt": "t",
+			"q": text
+		}
+		response = requests.get(url, params=params, timeout=10)
+		response.raise_for_status()
+		res_json = response.json()
+		if res_json and len(res_json) > 0 and len(res_json[0]) > 0:
+			translated_text = res_json[0][0][0]
+			return translated_text.strip()
+	except Exception as e:
+		frappe.log_error(f"Translation failed in pdf_page: {str(e)}")
+	return text
+
+def is_non_ascii(text):
+	return any(ord(c) > 127 for c in (text or ""))
+
+def get_translated_names(text):
+	text = (text or "").strip()
+	if not text:
+		return "", ""
+	if is_non_ascii(text):
+		guj_name = text
+		eng_name = translate_text(text, "gu", "en")
+	else:
+		eng_name = text
+		guj_name = translate_text(text, "en", "gu")
+	return guj_name, eng_name
+
+
 def get_or_create_village(village_name):
 	village_name = village_name.strip()
-	docname = frappe.db.get_value('Village', {'gujarati_name': village_name})
+	guj_name, eng_name = get_translated_names(village_name)
+	
+	docname = frappe.db.get_value('Village', {'gujarati_name': guj_name})
+	if not docname and eng_name:
+		docname = frappe.db.get_value('Village', {'english_name': eng_name})
+		
 	if docname:
-		return frappe.get_doc('Village', docname)
+		village = frappe.get_doc('Village', docname)
+		updated = False
+		if guj_name and village.gujarati_name != guj_name:
+			village.gujarati_name = guj_name
+			updated = True
+		if eng_name and village.english_name != eng_name:
+			village.english_name = eng_name
+			updated = True
+		if updated:
+			village.save(ignore_permissions=True)
+		return village
+
 	village = frappe.get_doc({
 		'doctype': 'Village',
-		'gujarati_name': village_name,
-		'english_name': village_name
+		'gujarati_name': guj_name,
+		'english_name': eng_name
 	})
 	village.insert(ignore_permissions=True)
 	return village
@@ -902,11 +982,17 @@ def get_or_create_person(name, village_doc, mobile_number, is_collector=False, l
 	name = (name or '').strip() or mobile_number or 'Unknown Person'
 	# Normalize mobile number to Indian format when possible
 	mobile_number = normalize_mobile_number(mobile_number)
+	
+	guj_name, eng_name = get_translated_names(name)
+	
 	docname = None
 	if mobile_number:
 		docname = frappe.db.get_value('Person', {'mobile_number': mobile_number})
 	if not docname:
-		docname = frappe.db.get_value('Person', {'gujarati_fullname': name})
+		docname = frappe.db.get_value('Person', {'gujarati_fullname': guj_name})
+	if not docname and eng_name:
+		docname = frappe.db.get_value('Person', {'english_fullname': eng_name})
+		
 	if docname:
 		person = frappe.get_doc('Person', docname)
 		if is_collector and person.is_collector != 'true':
@@ -916,13 +1002,22 @@ def get_or_create_person(name, village_doc, mobile_number, is_collector=False, l
 		# Update phone if missing or different
 		if mobile_number and person.mobile_number != mobile_number:
 			person.mobile_number = mobile_number
-		person.save(ignore_permissions=True)
+			
+		updated = False
+		if guj_name and person.gujarati_fullname != guj_name:
+			person.gujarati_fullname = guj_name
+			updated = True
+		if eng_name and person.english_fullname != eng_name:
+			person.english_fullname = eng_name
+			updated = True
+		if updated:
+			person.save(ignore_permissions=True)
 		return person
 
 	person = frappe.get_doc({
 		'doctype': 'Person',
-		'gujarati_fullname': name,
-		'english_fullname': name,
+		'gujarati_fullname': guj_name,
+		'english_fullname': eng_name,
 		'mobile_number': mobile_number,
 		'village_gujarati_name': village_doc.name,
 		'village_english_name': village_doc.english_name,
