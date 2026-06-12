@@ -1,7 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "field:gujarati_fullname",
+ "autoname": "prompt",
  "creation": "2026-06-02 10:47:44.878769",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -27,8 +27,7 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Gujarati Fullname",
-   "reqd": 1,
-   "unique": 1
+   "reqd": 1
   },
   {
    "fieldname": "english_fullname",
@@ -113,7 +112,7 @@
  "modified_by": "Administrator",
  "module": "Veerpasli",
  "name": "Person",
- "naming_rule": "By fieldname",
+ "naming_rule": "Set by user",
  "owner": "Administrator",
  "permissions": [
   {

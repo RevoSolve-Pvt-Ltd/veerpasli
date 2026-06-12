@@ -2,6 +2,14 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on("Donation", {
+	setup(frm) {
+		frappe.meta.get_docfield("Donor", "donor_name").formatter = function(value, df, options, doc) {
+			if (value) {
+				return `<a href="/app/person/${encodeURIComponent(value)}" data-doctype="Person" data-name="${frappe.utils.escape_html(value)}">${frappe.utils.escape_html(value)}</a>`;
+			}
+			return "";
+		};
+	},
 	refresh(frm) {
 		// Hide the raw coordinate fields and image URL from the user UI
 		frm.toggle_display(['ocr_image_url', 'ocr_box_x', 'ocr_box_y', 'ocr_box_w', 'ocr_box_h'], false);

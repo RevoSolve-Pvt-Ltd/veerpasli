@@ -292,10 +292,11 @@ def process_ocr_box(image_url, box, page_id=None):
 		if person_id and frappe.db.exists('Person', person_id):
 			# Step 1: Rename primary key first (also syncs gujarati_fullname via update_autoname_field)
 			guj_name, eng_name = get_translated_names(name)
-			if person_id != guj_name:
+			target_name = f"{guj_name} - {village_name}"
+			if person_id != target_name:
 				try:
-					target_exists = frappe.db.exists('Person', guj_name)
-					person_id = frappe.rename_doc('Person', person_id, guj_name, force=True, merge=target_exists, ignore_permissions=True)
+					target_exists = frappe.db.exists('Person', target_name)
+					person_id = frappe.rename_doc('Person', person_id, target_name, force=True, merge=target_exists, ignore_permissions=True)
 				except Exception:
 					frappe.log_error(frappe.get_traceback(), 'Collector rename failed in process_ocr_box')
 
@@ -383,10 +384,11 @@ def process_ocr_box(image_url, box, page_id=None):
 				# Step 1: Rename primary key first (also syncs gujarati_fullname via update_autoname_field)
 				donor_id = old_donor_id
 				guj_name, eng_name = get_translated_names(name)
-				if old_donor_id != guj_name:
+				target_name = f"{guj_name} - {village_doc.name}"
+				if old_donor_id != target_name:
 					try:
-						target_exists = frappe.db.exists('Person', guj_name)
-						donor_id = frappe.rename_doc('Person', old_donor_id, guj_name, force=True, merge=target_exists, ignore_permissions=True)
+						target_exists = frappe.db.exists('Person', target_name)
+						donor_id = frappe.rename_doc('Person', old_donor_id, target_name, force=True, merge=target_exists, ignore_permissions=True)
 					except Exception:
 						frappe.log_error(frappe.get_traceback(), 'Person rename failed in process_ocr_box')
 
@@ -989,9 +991,15 @@ def get_or_create_person(name, village_doc, mobile_number, is_collector=False, l
 	if mobile_number:
 		docname = frappe.db.get_value('Person', {'mobile_number': mobile_number})
 	if not docname:
-		docname = frappe.db.get_value('Person', {'gujarati_fullname': guj_name})
+		docname = frappe.db.get_value('Person', {
+			'gujarati_fullname': guj_name,
+			'village_gujarati_name': village_doc.name
+		})
 	if not docname and eng_name:
-		docname = frappe.db.get_value('Person', {'english_fullname': eng_name})
+		docname = frappe.db.get_value('Person', {
+			'english_fullname': eng_name,
+			'village_gujarati_name': village_doc.name
+		})
 		
 	if docname:
 		person = frappe.get_doc('Person', docname)
