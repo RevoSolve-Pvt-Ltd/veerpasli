@@ -406,8 +406,44 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
 
     function openBoxEditorModal(box) {
         box.fields.hastes = box.fields.hastes || [];
-        var tokens = tokenizeText(box.text || '', true);
-        var originalBoxText = box.text || ''; // saved for Redo/Reset
+        function deduplicateText(text) {
+            if (!text) return '';
+            var words = text.trim().split(/\s+/);
+            if (words.length % 2 === 0) {
+                var mid = words.length / 2;
+                var firstHalf = words.slice(0, mid).join(' ');
+                var secondHalf = words.slice(mid).join(' ');
+                if (firstHalf === secondHalf) {
+                    return firstHalf;
+                }
+            }
+            return text;
+        }
+
+        box.text = deduplicateText(box.text);
+        var tokens;
+        var originalBoxText;
+
+        if (box.status === 'verified') {
+            // Submitted box: Text box starts empty (no tokens), and we reconstruct originalBoxText for Redo/Reset
+            tokens = [];
+            var parts = [];
+            if (box.fields.name) parts.push(box.fields.name);
+            if (box.fields.village) parts.push(box.fields.village);
+            if (box.fields.amount) parts.push(box.fields.amount);
+            if (box.fields.phone) parts.push(box.fields.phone);
+            if (box.fields.hastes && box.fields.hastes.length > 0) {
+                box.fields.hastes.forEach(function (h) {
+                    if (h.name) parts.push(h.name);
+                });
+            }
+            originalBoxText = parts.join(' ').replace(/\s+/g, ' ').trim();
+        } else {
+            // Unsubmitted/merged box: Text box shows the current tokens, and originalBoxText is the current box.text
+            tokens = tokenizeText(box.text || '', true);
+            originalBoxText = box.text || '';
+        }
+        originalBoxText = deduplicateText(originalBoxText);
 
         var currentOffset = 0;
         tokens.forEach(function (token) {
@@ -671,6 +707,10 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                 box.fields[field] = '';
             });
             box.fields.hastes = [];
+            box.fields.reference_person = '';
+            box.fields.reference_donation = '';
+            box.fields.entryType = '';
+            box.status = 'merged';
             // Restore box.text and tokens to the state when the modal was first opened
             box.text = originalBoxText;
             tokens.length = 0;

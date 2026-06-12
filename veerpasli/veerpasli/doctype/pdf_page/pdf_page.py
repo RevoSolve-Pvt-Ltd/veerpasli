@@ -92,7 +92,7 @@ def process_image(docname):
 							"status": "original"
 						})
 				except Exception as e:
-					frappe.log_error(f"Error parsing OCR segments for {doc.name}: {str(e)}")
+					frappe.log_error(title="OCR parsing error", message=f"Error parsing OCR segments for {doc.name}: {str(e)}")
 				
 				doc.json_file = file_doc.file_url
 				doc.status = "completed"
@@ -610,7 +610,7 @@ def get_ocr_boxes(page_id):
 				doc.save(ignore_permissions=True)
 				frappe.db.commit()
 			except Exception as e:
-				frappe.log_error(f"Error migrating JSON to child table for {page_id}: {str(e)}")
+				frappe.log_error(title="JSON migration error", message=f"Error migrating JSON to child table for {page_id}: {str(e)}")
 	
 	# Deduplicate existing ocr_boxes in the database if duplicates exist
 	seen = {}
@@ -853,7 +853,7 @@ def translate_text(text, source_lang, target_lang):
 			translated_text = res_json[0][0][0]
 			return translated_text.strip()
 	except Exception as e:
-		frappe.log_error(f"Translation failed in pdf_page: {str(e)}")
+		frappe.log_error(title="Translation failed in pdf_page", message=f"Error: {str(e)}")
 	return text
 
 def is_non_ascii(text):
