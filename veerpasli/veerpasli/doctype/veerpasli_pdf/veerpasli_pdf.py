@@ -37,48 +37,53 @@ def get_or_create_location(gujarati_name, english_name):
 
 
 @frappe.whitelist()
-def translate_location(text, source_lang, target_lang):
+def get_input_suggestions(text, lang="gu"):
 	if not text:
-		return ""
+		return []
 	try:
-		url = "https://translate.googleapis.com/translate_a/single"
-		params = {
-			"client": "gtx",
-			"sl": source_lang,
-			"tl": target_lang,
-			"dt": "t",
-			"q": text
-		}
-		response = requests.get(url, params=params, timeout=10)
-		response.raise_for_status()
-		res_json = response.json()
-		if res_json and len(res_json) > 0 and len(res_json[0]) > 0:
-			translated_text = res_json[0][0][0]
-			return translated_text
+		if lang == "gu":
+			url = "https://inputtools.google.com/request"
+			params = {
+				"text": text,
+				"itc": "gu-t-i0-und",
+				"num": 13,
+				"cp": 0,
+				"cs": 1,
+				"ie": "utf-8",
+				"oe": "utf-8",
+				"app": "jsapi"
+			}
+			response = requests.get(url, params=params, timeout=5)
+			response.raise_for_status()
+			res_json = response.json()
+			if res_json and len(res_json) > 1 and len(res_json[1]) > 0:
+				return res_json[1][0][1]
+		else:
+			# Gujarati -> English translation fallback
+			url = "https://translate.googleapis.com/translate_a/single"
+			params = {
+				"client": "gtx",
+				"sl": "gu",
+				"tl": "en",
+				"dt": "t",
+				"q": text
+			}
+			response = requests.get(url, params=params, timeout=5)
+			response.raise_for_status()
+			res_json = response.json()
+			if res_json and len(res_json) > 0 and len(res_json[0]) > 0:
+				translated_text = res_json[0][0][0]
+				return [translated_text.strip()]
 	except Exception as e:
-		frappe.log_error(f"Translation failed: {str(e)}")
-	return ""
+		frappe.log_error(f"Input suggestions failed: {str(e)}")
+	return []
 
 
 class VeerpasliPDF(Document):
 	def validate(self):
-		if not self.location_english and not self.location_gujarati:
-			frappe.throw("Please enter either English Location or Gujarati Location.")
+		if not self.location_english or not self.location_gujarati:
+			frappe.throw("Please enter both English Location and Gujarati Location.")
 		
-		if self.location_english and not self.location_gujarati:
-			translated = translate_location(self.location_english, "en", "gu")
-			if translated:
-				self.location_gujarati = translated
-			else:
-				frappe.throw("Failed to automatically translate English Location to Gujarati. Please fill Gujarati Location manually.")
-				
-		elif self.location_gujarati and not self.location_english:
-			translated = translate_location(self.location_gujarati, "gu", "en")
-			if translated:
-				self.location_english = translated
-			else:
-				frappe.throw("Failed to automatically translate Gujarati Location to English. Please fill English Location manually.")
-				
 		# Create/Get Location and link it
 		location_doc = get_or_create_location(self.location_gujarati, self.location_english)
 		self.location = location_doc.name

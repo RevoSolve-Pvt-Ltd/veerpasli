@@ -10,7 +10,6 @@
   "page_number_range",
   "section_break_location",
   "location_english",
-  "translate",
   "column_break_loc",
   "location_gujarati",
   "location"
@@ -45,11 +44,6 @@
    "fieldtype": "Data",
    "label": "English Location",
    "reqd": 1
-  },
-  {
-   "fieldname": "translate",
-   "fieldtype": "Button",
-   "label": "Translate"
   },
   {
    "fieldname": "column_break_loc",
