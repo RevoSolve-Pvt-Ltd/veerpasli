@@ -85,12 +85,12 @@ frappe.listview_settings["Donation"] = {
 
 
 	// ── Colour-coded status badges per row ────────────────────────────────────
-	get_indicator(doc) {
-		if (doc.amount_english >= 10000) {
-			return [__("High Value"), "green", "amount_english,>=,10000"];
-		} else if (doc.amount_english > 0) {
-			return [__("Donated"), "blue", "amount_english,>,0"];
-		}
-		return [__("Pending"), "orange", "amount_english,=,0"];
-	},
+	// get_indicator(doc) {
+	// 	if (doc.amount_english >= 10000) {
+	// 		return [__("High Value"), "green", "amount_english,>=,10000"];
+	// 	} else if (doc.amount_english > 0) {
+	// 		return [__("Donated"), "blue", "amount_english,>,0"];
+	// 	}
+	// 	return [__("Pending"), "orange", "amount_english,=,0"];
+	// },
 };
