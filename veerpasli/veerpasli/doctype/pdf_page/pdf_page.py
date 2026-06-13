@@ -684,7 +684,8 @@ def get_ocr_boxes(page_id):
 		
 	return {
 		"image_url": doc.page_file,
-		"boxes": boxes
+		"boxes": boxes,
+		"status": doc.status
 	}
 
 

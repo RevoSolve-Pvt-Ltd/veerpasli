@@ -1104,7 +1104,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
         $deleteBtn.prop('disabled', selectedCount === 0);
         $clearSelectionBtn.prop('disabled', selectedCount === 0);
 
-        if (allBoxesVerified()) {
+        if (allBoxesVerified() && (!jsonData || jsonData.status !== 'verified')) {
             $verifyPageBtn.removeClass('d-none');
         } else {
             $verifyPageBtn.addClass('d-none');
@@ -1408,6 +1408,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                     frappe.msgprint('Failed to mark page verified: ' + (r.exc && r.exc.message ? r.exc.message : r.message));
                 } else {
                     setStatus('Pdf page marked verified.', 'text-success');
+                    if (jsonData) jsonData.status = 'verified';
                     $verifyPageBtn.addClass('d-none');
                 }
             }
