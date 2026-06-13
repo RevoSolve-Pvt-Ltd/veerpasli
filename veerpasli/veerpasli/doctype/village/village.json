@@ -28,7 +28,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-03 17:01:36.926184",
+ "modified": "2026-06-13 16:35:52.947607",
  "modified_by": "Administrator",
  "module": "Veerpasli",
  "name": "Village",
@@ -44,6 +44,24 @@
    "read": 1,
    "report": 1,
    "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "Maker",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Checker",
    "share": 1,
    "write": 1
   }

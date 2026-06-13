@@ -19,7 +19,8 @@
   "collector_locations",
   "validation_section",
   "ocr_preview",
-  "tagged_boxes"
+  "tagged_boxes",
+  "amended_from"
  ],
  "fields": [
   {
@@ -102,13 +103,24 @@
    "fieldtype": "Table",
    "label": "Tagged Boxes",
    "options": "Person Tagged Box"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Person",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
   }
  ],
  "grid_page_length": 50,
  "image_field": "profile",
  "index_web_pages_for_search": 1,
+ "is_submittable": 1,
  "links": [],
- "modified": "2026-06-09 12:31:46.408823",
+ "modified": "2026-06-13 16:44:07.819534",
  "modified_by": "Administrator",
  "module": "Veerpasli",
  "name": "Person",
@@ -125,6 +137,20 @@
    "report": 1,
    "role": "System Manager",
    "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Maker",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "Checker",
+   "submit": 1,
    "write": 1
   }
  ],

@@ -27,7 +27,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-12 11:38:12.830288",
+ "modified": "2026-06-13 16:49:45.716737",
  "modified_by": "Administrator",
  "module": "Veerpasli",
  "name": "Location",
@@ -44,6 +44,12 @@
    "report": 1,
    "role": "System Manager",
    "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Maker",
    "write": 1
   }
  ],

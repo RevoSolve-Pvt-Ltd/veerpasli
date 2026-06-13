@@ -13,6 +13,23 @@ def normalize_location(location):
     return location.strip('-') or 'unknown'
 
 
+def get_file_path(file_url):
+    if not file_url:
+        return None
+    if os.path.isabs(file_url) and not file_url.startswith("/files/") and not file_url.startswith("/private/files/"):
+        return file_url
+
+    url = file_url
+    if not url.startswith("/"):
+        url = "/" + url
+
+    if url.startswith("/private/files/"):
+        return frappe.get_site_path("private", "files", url.split("/private/files/", 1)[1])
+    elif url.startswith("/files/"):
+        return frappe.get_site_path("public", "files", url.split("/files/", 1)[1])
+    return frappe.get_site_path(file_url.lstrip('/'))
+
+
 def parse_pdf_metadata(file_name):
     base_name = os.path.splitext(os.path.basename(file_name))[0]
     normalized = re.sub(r'[_]+', '-', base_name)
@@ -92,7 +109,7 @@ def split_pdf_and_create_records(file_content, file_name):
             "doctype": "File",
             "file_name": new_file_name,
             "content": img_bytes,
-            "is_private": 1
+            "is_private": 0
         })
         single_page_file.save()
         

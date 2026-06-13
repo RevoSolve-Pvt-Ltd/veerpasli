@@ -7,7 +7,7 @@ import os
 import re
 import requests
 import pymupdf as fitz
-from veerpasli.veerpasli.utils.pdf_splitter import normalize_location
+from veerpasli.veerpasli.utils.pdf_splitter import normalize_location, get_file_path
 
 
 def get_or_create_location(gujarati_name, english_name):
@@ -99,7 +99,7 @@ class VeerpasliPDF(Document):
 		if not self.page_number_range:
 			frappe.throw("Please enter a Page Number Range.")
 
-		file_path = frappe.get_site_path(self.document_pdf.lstrip('/'))
+		file_path = get_file_path(self.document_pdf)
 		if not os.path.exists(file_path):
 			frappe.throw(f"File not found at {file_path}")
 
@@ -152,7 +152,7 @@ class VeerpasliPDF(Document):
 				"doctype": "File",
 				"file_name": new_file_name,
 				"content": img_bytes,
-				"is_private": 1
+				"is_private": 0
 			})
 			single_page_file.save()
 			

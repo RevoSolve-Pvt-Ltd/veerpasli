@@ -8,6 +8,7 @@ import os
 import re
 import requests
 from urllib.parse import urlparse, unquote
+from veerpasli.veerpasli.utils.pdf_splitter import get_file_path
 
 class Pdfpage(Document):
 	def after_insert(self):
@@ -29,7 +30,7 @@ def process_image(docname):
 	doc.db_set("status", "in process")
 	frappe.db.commit()
 		
-	image_path = frappe.get_site_path(doc.page_file.lstrip('/'))
+	image_path = get_file_path(doc.page_file)
 	script_path = os.path.abspath(os.path.join(frappe.get_app_path("veerpasli"), "..", "ocr.js"))
 	
 	nvm_sh_path = os.path.expanduser("~/.nvm/nvm.sh")
@@ -40,7 +41,7 @@ def process_image(docname):
 		print(result, 'result of ocr')
 		if result.returncode == 0:
 			json_web_path = os.path.splitext(doc.page_file)[0] + '.json'
-			json_disk_path = frappe.get_site_path(json_web_path.lstrip('/'))
+			json_disk_path = get_file_path(json_web_path)
 			
 			if os.path.exists(json_disk_path):
 				from frappe.utils.file_manager import save_file
@@ -567,7 +568,7 @@ def get_ocr_boxes(page_id):
 	doc = frappe.get_doc("Pdf page", page_id)
 	if not doc.ocr_boxes and doc.json_file:
 		# Populate child table from JSON file (one-time migration)
-		json_path = frappe.get_site_path(doc.json_file.lstrip('/'))
+		json_path = get_file_path(doc.json_file)
 		if os.path.exists(json_path):
 			try:
 				with open(json_path, 'r', encoding='utf-8') as f:
@@ -1131,7 +1132,7 @@ def ocr_crop(page_id, box):
 		frappe.throw("Page file not found")
 		
 	# Get paths
-	image_path = frappe.get_site_path(doc.page_file.lstrip('/'))
+	image_path = get_file_path(doc.page_file)
 	
 	from PIL import Image
 	img = Image.open(image_path)

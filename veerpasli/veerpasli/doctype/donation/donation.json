@@ -28,7 +28,8 @@
   "ocr_box_x",
   "ocr_box_y",
   "ocr_box_w",
-  "ocr_box_h"
+  "ocr_box_h",
+  "amended_from"
  ],
  "fields": [
   {
@@ -173,12 +174,23 @@
    "fieldname": "collector_english",
    "fieldtype": "Read Only",
    "label": "Collector English"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Donation",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
+ "is_submittable": 1,
  "links": [],
- "modified": "2026-06-12 19:03:22.303689",
+ "modified": "2026-06-13 16:47:04.054448",
  "modified_by": "Administrator",
  "module": "Veerpasli",
  "name": "Donation",
@@ -194,6 +206,20 @@
    "report": 1,
    "role": "System Manager",
    "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "read": 1,
+   "role": "Maker",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "Checker",
+   "submit": 1,
    "write": 1
   }
  ],

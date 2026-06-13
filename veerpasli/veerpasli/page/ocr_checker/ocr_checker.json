@@ -4,7 +4,7 @@
  "docstatus": 0,
  "doctype": "Page",
  "idx": 0,
- "modified": "2026-06-02 21:14:31.254803",
+ "modified": "2026-06-13 17:01:17.784748",
  "modified_by": "Administrator",
  "module": "Veerpasli",
  "name": "ocr-checker",
@@ -13,6 +13,9 @@
  "roles": [
   {
    "role": "System Manager"
+  },
+  {
+   "role": "Maker"
   }
  ],
  "script": null,
