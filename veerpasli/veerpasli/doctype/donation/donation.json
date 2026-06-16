@@ -11,6 +11,8 @@
   "column_break_chxz",
   "amount_gujarati",
   "amount_english",
+  "time_information_section",
+  "donation_date",
   "area_information_section",
   "village",
   "village_english",
@@ -184,13 +186,23 @@
    "print_hide": 1,
    "read_only": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "time_information_section",
+   "fieldtype": "Section Break",
+   "label": "Time Information"
+  },
+  {
+   "fieldname": "donation_date",
+   "fieldtype": "Date",
+   "label": "Donation Date"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-06-13 16:47:04.054448",
+ "modified": "2026-06-16 12:45:05.842668",
  "modified_by": "Administrator",
  "module": "Veerpasli",
  "name": "Donation",

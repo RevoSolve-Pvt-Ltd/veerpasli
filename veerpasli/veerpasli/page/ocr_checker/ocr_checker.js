@@ -212,7 +212,8 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                 name: '',
                 village: '',
                 amount: '',
-                phone: ''
+                phone: '',
+                donation_date: ''
             }
         };
     }
@@ -617,13 +618,25 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
         var dialog = new frappe.ui.Dialog({
             title: 'Tag ' + selectedEntryType,
             fields: [
-                { fieldtype: 'HTML', fieldname: 'content' }
+                { fieldtype: 'HTML', fieldname: 'content' },
+                {
+                    fieldtype: 'Date',
+                    fieldname: 'donation_date',
+                    label: 'Donation Date',
+                    default: box.fields.donation_date || '2024-08-01'
+                }
             ],
             primary_action_label: 'Submit',
             primary_action: submitBoxEntry,
             secondary_action_label: 'Redo / Reset',
             secondary_action: resetAssignments
         });
+
+        if (box.fields.donation_date) {
+            dialog.set_value('donation_date', box.fields.donation_date);
+        } else {
+            dialog.set_value('donation_date', '2024-08-01');
+        }
 
         function submitBoxEntry() {
             if (!selectedEntryType) {
@@ -654,6 +667,12 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             }
 
             dialog.set_primary_action('Submitting...', function () { });
+
+            if (selectedEntryType === 'Donation') {
+                box.fields.donation_date = dialog.get_value('donation_date') || '2024-08-01';
+            } else {
+                box.fields.donation_date = '';
+            }
 
             var entryTypeForBackend = selectedEntryType === 'Collector' ? 'collector' : 'donation';
             var wasVerified = (box.status === 'verified');
@@ -706,6 +725,10 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             fieldNames.forEach(function (field) {
                 box.fields[field] = '';
             });
+            box.fields.donation_date = '';
+            if (dialog.fields_dict.donation_date) {
+                dialog.set_value('donation_date', '2024-08-01');
+            }
             box.fields.hastes = [];
             box.fields.reference_person = '';
             box.fields.reference_donation = '';
@@ -727,6 +750,9 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
 
         function redraw() {
             dialog.set_title('Tag ' + selectedEntryType);
+            if (dialog.fields_dict.donation_date) {
+                dialog.set_df_property('donation_date', 'hidden', selectedEntryType !== 'Donation' ? 1 : 0);
+            }
             dialog.fields_dict.content.$wrapper.html(renderModalContent());
             dialog.fields_dict.content.$wrapper.find('.ocr-entry-type').on('click', function () {
                 selectedEntryType = $(this).attr('data-type');
@@ -1171,7 +1197,8 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                 name: '',
                 village: '',
                 amount: '',
-                phone: ''
+                phone: '',
+                donation_date: ''
             }
         };
 

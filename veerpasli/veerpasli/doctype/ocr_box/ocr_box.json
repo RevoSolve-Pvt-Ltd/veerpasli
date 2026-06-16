@@ -19,7 +19,8 @@
   "status",
   "reference_person",
   "reference_donation",
-  "hastes"
+  "hastes",
+  "donation_date"
  ],
  "fields": [
   {
@@ -101,6 +102,11 @@
    "fieldname": "hastes",
    "fieldtype": "Small Text",
    "label": "Hastes"
+  },
+  {
+   "fieldname": "donation_date",
+   "fieldtype": "Date",
+   "label": "Donation Date"
   }
  ],
  "grid_page_length": 50,

@@ -447,6 +447,7 @@ def process_ocr_box(image_url, box, page_id=None):
 		donation.ocr_box_y = center_y
 		donation.ocr_box_w = width
 		donation.ocr_box_h = height
+		donation.donation_date = fields.get('donation_date') or '2024-08-01'
 
 		collector = find_collector_for_location(location_doc.name)
 		if collector:
@@ -498,7 +499,8 @@ def process_ocr_box(image_url, box, page_id=None):
 			'ocr_box_x': center_x,
 			'ocr_box_y': center_y,
 			'ocr_box_w': width,
-			'ocr_box_h': height
+			'ocr_box_h': height,
+			'donation_date': fields.get('donation_date') or '2024-08-01'
 		})
 
 		if not haste_names:
@@ -677,6 +679,7 @@ def get_ocr_boxes(page_id):
 				"entryType": row.entry_type or "",
 				"reference_person": row.reference_person or "",
 				"reference_donation": row.reference_donation or "",
+				"donation_date": row.donation_date or (frappe.db.get_value("Donation", row.reference_donation, "donation_date") if row.reference_donation else ""),
 				"hastes": frappe.parse_json(row.hastes) if row.hastes else []
 			}
 		}
@@ -768,6 +771,7 @@ def update_ocr_boxes(page_id, boxes):
 			"status": box.get("status") or "original",
 			"reference_person": fields.get("reference_person"),
 			"reference_donation": fields.get("reference_donation"),
+			"donation_date": fields.get("donation_date") or None,
 			"hastes": frappe.as_json(fields.get("hastes") or [])
 		})
 		
