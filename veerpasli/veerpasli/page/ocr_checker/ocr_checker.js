@@ -171,6 +171,12 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             .ocr-box-drawing { border: 2px dashed #6f42c1; background: rgba(111, 66, 193, 0.15); pointer-events: none; position: absolute; z-index: 100; box-sizing: border-box; }
             .ocr-drawing-mode { cursor: crosshair !important; }
             .ocr-drawing-mode .ocr-box { pointer-events: none !important; }
+            .btn-danger:hover, .btn-danger:focus, .btn-danger:active,
+            .modal-actions .btn-danger:hover, .modal-actions .btn-danger:focus {
+                background-color: #bb2d3b !important;
+                border-color: #b02a37 !important;
+                color: #fff !important;
+            }
             @media (max-width: 768px) {
                 #ocrCheckerFrame { min-height: 300px; }
                 .ocr-box-original { border-width: 1px; }
@@ -178,7 +184,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                 .ocr-box-complete { border-width: 1px; }
                 .ocr-box-verified { border-width: 1.5px; }
                 .ocr-box-selected { outline-width: 2px; outline-offset: -2px; }
-                .ocr-box-split-icon { width: 16px; height: 16px; padding: 1px; top: -8px; right: -8px; }
+                .ocr-box-split-icon { width: 10px; height: 10px; padding: 1px; top: -8px; right: -4px; }
             } }
         `;
         document.head.appendChild(style);
@@ -206,6 +212,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             status: segment.status || status || 'original',
             selected: false,
             mergedIds: [],
+            merged_from: segment.merged_from || [],
             sourceSegments: [{
                 text: segment.text,
                 boundingBox: segment.boundingBox
@@ -635,7 +642,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             primary_action: submitBoxEntry,
             secondary_action_label: 'Redo / Reset',
             secondary_action: resetAssignments,
-            onhide: function() {
+            onhide: function () {
                 $(document).off('.ocrDragSelection');
                 if (globalTouchMoveHandler) {
                     document.removeEventListener('touchmove', globalTouchMoveHandler);
@@ -652,6 +659,10 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             dialog.set_value('donation_date', box.fields.donation_date);
         } else {
             dialog.set_value('donation_date', '2024-08-01');
+        }
+
+        if (box.status === 'merged' && box.merged_from && box.merged_from.length > 0) {
+            dialog.add_custom_action('Undo Merge', undoMerge, 'btn-danger');
         }
 
         function submitBoxEntry() {
@@ -764,6 +775,48 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             setStatus('Reset all assignments for this box.', 'text-muted');
         }
 
+        function undoMerge() {
+            var oldBoxIndex = boxes.indexOf(box);
+            if (oldBoxIndex > -1) {
+                boxes.splice(oldBoxIndex, 1);
+            }
+
+            box.merged_from.forEach(function (origBox) {
+                if (origBox.id >= nextBoxId) {
+                    nextBoxId = origBox.id + 1;
+                }
+
+                var restoredBox = {
+                    id: origBox.id,
+                    db_name: '',
+                    text: origBox.text || '',
+                    boundingBox: origBox.boundingBox || null,
+                    status: origBox.status || 'original',
+                    selected: false,
+                    mergedIds: [],
+                    merged_from: origBox.merged_from || [],
+                    sourceSegments: origBox.sourceSegments || [{
+                        text: origBox.text,
+                        boundingBox: origBox.boundingBox
+                    }],
+                    fields: origBox.fields || {
+                        name: '',
+                        village: '',
+                        amount: '',
+                        phone: '',
+                        donation_date: ''
+                    }
+                };
+                boxes.push(restoredBox);
+            });
+
+            persistJsonData();
+            renderBoxes();
+            renderControls();
+            setStatus('Undid merge. Restored ' + box.merged_from.length + ' boxes.', 'text-success');
+            dialog.hide();
+        }
+
         function updateDOMSelection() {
             var $container = dialog.fields_dict.content.$wrapper.find('#ocrTokenContainer');
             $container.find('.ocr-token').each(function () {
@@ -829,18 +882,20 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                         if (currentIndex !== dragStartIndex) {
                             dragHasMoved = true;
                         }
-                        var newSelection = [];
-                        if (dragStartIndex <= currentIndex) {
-                            for (var i = dragStartIndex; i <= currentIndex; i++) {
-                                newSelection.push(i);
+                        if (dragHasMoved) {
+                            var newSelection = [];
+                            if (dragStartIndex <= currentIndex) {
+                                for (var i = dragStartIndex; i <= currentIndex; i++) {
+                                    newSelection.push(i);
+                                }
+                            } else {
+                                for (var i = dragStartIndex; i >= currentIndex; i--) {
+                                    newSelection.push(i);
+                                }
                             }
-                        } else {
-                            for (var i = dragStartIndex; i >= currentIndex; i--) {
-                                newSelection.push(i);
-                            }
+                            selectedTokenIds = newSelection;
+                            updateDOMSelection();
                         }
-                        selectedTokenIds = newSelection;
-                        updateDOMSelection();
                     }
                 }
             }
@@ -1375,6 +1430,17 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             status: 'merged',
             selected: false,
             mergedIds: selectedBoxes.map(function (box) { return box.id; }),
+            merged_from: selectedBoxes.map(function (box) {
+                return {
+                    id: box.id,
+                    db_name: box.db_name || '',
+                    text: box.text,
+                    boundingBox: box.boundingBox,
+                    status: box.status || 'original',
+                    fields: box.fields,
+                    merged_from: box.merged_from || []
+                };
+            }),
             sourceSegments: [],
             fields: {
                 name: '',

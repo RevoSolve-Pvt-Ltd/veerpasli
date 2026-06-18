@@ -682,7 +682,8 @@ def get_ocr_boxes(page_id):
 				"reference_donation": row.reference_donation or "",
 				"donation_date": row.donation_date or (frappe.db.get_value("Donation", row.reference_donation, "donation_date") if row.reference_donation else ""),
 				"hastes": frappe.parse_json(row.hastes) if row.hastes else []
-			}
+			},
+			"merged_from": frappe.parse_json(row.merged_from) if getattr(row, 'merged_from', None) else []
 		}
 		boxes.append(box_dict)
 		
@@ -780,6 +781,7 @@ def update_ocr_boxes(page_id, boxes):
 			row.reference_donation = fields.get("reference_donation")
 			row.donation_date = fields.get("donation_date") or None
 			row.hastes = frappe.as_json(fields.get("hastes") or [])
+			row.merged_from = frappe.as_json(box.get("merged_from") or [])
 			updated_row_names.add(db_name)
 		else:
 			# Otherwise append a new row
@@ -798,7 +800,8 @@ def update_ocr_boxes(page_id, boxes):
 				"reference_person": fields.get("reference_person"),
 				"reference_donation": fields.get("reference_donation"),
 				"donation_date": fields.get("donation_date") or None,
-				"hastes": frappe.as_json(fields.get("hastes") or [])
+				"hastes": frappe.as_json(fields.get("hastes") or []),
+				"merged_from": frappe.as_json(box.get("merged_from") or [])
 			})
 			appends.append((box.get("id"), new_row))
 

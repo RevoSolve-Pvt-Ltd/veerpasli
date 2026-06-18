@@ -20,7 +20,8 @@
   "reference_person",
   "reference_donation",
   "hastes",
-  "donation_date"
+  "donation_date",
+  "merged_from"
  ],
  "fields": [
   {
@@ -107,6 +108,11 @@
    "fieldname": "donation_date",
    "fieldtype": "Date",
    "label": "Donation Date"
+  },
+  {
+   "fieldname": "merged_from",
+   "fieldtype": "Long Text",
+   "label": "Merged From"
   }
  ],
  "grid_page_length": 50,
