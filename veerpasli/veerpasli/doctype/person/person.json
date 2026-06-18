@@ -118,9 +118,8 @@
  "grid_page_length": 50,
  "image_field": "profile",
  "index_web_pages_for_search": 1,
- "is_submittable": 1,
  "links": [],
- "modified": "2026-06-13 16:44:07.819534",
+ "modified": "2026-06-13 23:18:23.962822",
  "modified_by": "Administrator",
  "module": "Veerpasli",
  "name": "Person",
@@ -150,12 +149,10 @@
    "delete": 1,
    "read": 1,
    "role": "Checker",
-   "submit": 1,
    "write": 1
   }
  ],
  "row_format": "Dynamic",
- "rows_threshold_for_grid_search": 20,
  "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
