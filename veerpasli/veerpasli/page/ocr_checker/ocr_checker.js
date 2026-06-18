@@ -82,6 +82,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
     var currentJsonUrl = null;
     var jsonData = null;
     var pageId = null;
+    var isLoadingPageData = false;
 
     function setStatus(message, type) {
         $status.removeClass('text-success text-danger text-muted');
@@ -199,6 +200,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
     function createBox(segment, status) {
         return {
             id: nextBoxId++,
+            db_name: segment.db_name || '',
             text: segment.text || '',
             boundingBox: segment.boundingBox || null,
             status: segment.status || status || 'original',
@@ -289,6 +291,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
         var createBoxObj = function (text, cX, widthVal) {
             return {
                 id: nextBoxId++,
+                db_name: '',
                 text: text,
                 boundingBox: {
                     centerPerX: cX,
@@ -1271,6 +1274,13 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             callback: function (r) {
                 if (r.exc) {
                     console.error('Failed to update OCR boxes:', r.exc);
+                } else if (r.message && r.message.mappings) {
+                    r.message.mappings.forEach(function (mapping) {
+                        var boxObj = boxes.find(function (b) { return b.id === mapping.id; });
+                        if (boxObj) {
+                            boxObj.db_name = mapping.db_name;
+                        }
+                    });
                 }
             }
         });
@@ -1498,6 +1508,11 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             return;
         }
 
+        if (isLoadingPageData) {
+            return;
+        }
+        isLoadingPageData = true;
+
         isDrawingMode = false;
         if ($drawBoxBtn.length) {
             $drawBoxBtn.removeClass('btn-info').addClass('btn-outline-info').text('Draw Box');
@@ -1563,6 +1578,9 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                 } else {
                     setStatus('No image URL found for this page.', 'text-danger');
                 }
+            },
+            always: function () {
+                isLoadingPageData = false;
             }
         });
     }

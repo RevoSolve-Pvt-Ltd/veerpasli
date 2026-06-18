@@ -663,6 +663,7 @@ def get_ocr_boxes(page_id):
 	boxes = []
 	for row in doc.ocr_boxes:
 		box_dict = {
+			"db_name": row.name,
 			"text": row.text,
 			"status": row.status,
 			"boundingBox": {
@@ -752,32 +753,68 @@ def update_ocr_boxes(page_id, boxes):
 				except Exception:
 					pass
 
-	doc.set("ocr_boxes", [])
+	existing_rows_dict = {row.name: row for row in doc.ocr_boxes}
+	updated_row_names = set()
+	appends = []
 	
 	for box in boxes:
 		bb = box.get("boundingBox") or {}
 		fields = box.get("fields") or {}
-		doc.append("ocr_boxes", {
-			"text": box.get("text"),
-			"center_x": bb.get("centerPerX"),
-			"center_y": bb.get("centerPerY"),
-			"width": bb.get("perWidth"),
-			"height": bb.get("perHeight"),
-			"person_name": fields.get("name"),
-			"village": fields.get("village"),
-			"amount": fields.get("amount"),
-			"phone": fields.get("phone"),
-			"entry_type": fields.get("entryType") or fields.get("entry_type"),
-			"status": box.get("status") or "original",
-			"reference_person": fields.get("reference_person"),
-			"reference_donation": fields.get("reference_donation"),
-			"donation_date": fields.get("donation_date") or None,
-			"hastes": frappe.as_json(fields.get("hastes") or [])
-		})
+		db_name = box.get("db_name")
 		
+		# If row exists, update it in place
+		if db_name and db_name in existing_rows_dict:
+			row = existing_rows_dict[db_name]
+			row.text = box.get("text")
+			row.center_x = bb.get("centerPerX")
+			row.center_y = bb.get("centerPerY")
+			row.width = bb.get("perWidth")
+			row.height = bb.get("perHeight")
+			row.person_name = fields.get("name")
+			row.village = fields.get("village")
+			row.amount = fields.get("amount")
+			row.phone = fields.get("phone")
+			row.entry_type = fields.get("entryType") or fields.get("entry_type")
+			row.status = box.get("status") or "original"
+			row.reference_person = fields.get("reference_person")
+			row.reference_donation = fields.get("reference_donation")
+			row.donation_date = fields.get("donation_date") or None
+			row.hastes = frappe.as_json(fields.get("hastes") or [])
+			updated_row_names.add(db_name)
+		else:
+			# Otherwise append a new row
+			new_row = doc.append("ocr_boxes", {
+				"text": box.get("text"),
+				"center_x": bb.get("centerPerX"),
+				"center_y": bb.get("centerPerY"),
+				"width": bb.get("perWidth"),
+				"height": bb.get("perHeight"),
+				"person_name": fields.get("name"),
+				"village": fields.get("village"),
+				"amount": fields.get("amount"),
+				"phone": fields.get("phone"),
+				"entry_type": fields.get("entryType") or fields.get("entry_type"),
+				"status": box.get("status") or "original",
+				"reference_person": fields.get("reference_person"),
+				"reference_donation": fields.get("reference_donation"),
+				"donation_date": fields.get("donation_date") or None,
+				"hastes": frappe.as_json(fields.get("hastes") or [])
+			})
+			appends.append((box.get("id"), new_row))
+
+	# Delete rows that are not in the updated list
+	for name, row in existing_rows_dict.items():
+		if name not in updated_row_names:
+			doc.ocr_boxes.remove(row)
+			
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()
-	return {"success": True}
+	
+	updated_mappings = []
+	for client_id, row in appends:
+		updated_mappings.append({"id": client_id, "db_name": row.name})
+		
+	return {"success": True, "mappings": updated_mappings}
 
 
 def extract_location_from_image_url(image_url):
