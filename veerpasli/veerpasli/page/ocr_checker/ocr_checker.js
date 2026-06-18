@@ -151,7 +151,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                  z-index: 20;
             }
             .ocr-checker-field { margin-bottom: 1rem; }
-            .ocr-token { display: inline-flex; align-items: center; position: relative; padding: 0.25rem 0.5rem; margin: 0.2rem; border: 1px solid #dee2e6; background-color: #f8f9fa; border-radius: 4px; transition: all 0.15s ease-in-out; cursor: pointer; font-family: monospace; font-size: 0.95rem; }
+            .ocr-token { display: inline-flex; align-items: center; position: relative; padding: 0.25rem 0.5rem; margin: 0.2rem; border: 1px solid #dee2e6; background-color: #f8f9fa; border-radius: 4px; transition: all 0.15s ease-in-out; cursor: pointer; font-family: monospace; font-size: 0.95rem; user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; }
             .ocr-token .ocr-token-delete { display: none; position: absolute; top: -7px; right: -7px; width: 16px; height: 16px; border-radius: 50%; background: #dc3545; color: #fff; font-size: 10px; line-height: 16px; text-align: center; cursor: pointer; z-index: 5; border: 1.5px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
             .ocr-token:hover .ocr-token-delete { display: block; }
             .ocr-token-new-input { display: inline-block; border: none; outline: none; font-family: monospace; font-size: 0.95rem; min-width: 60px; max-width: 200px; background: transparent; vertical-align: middle; padding: 0.25rem 0.1rem; }
@@ -505,6 +505,8 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
         // Ordered array — preserves the exact click sequence so assigned value
         // follows user intent, not token position in the array.
         var selectedTokenIds = [];
+        var scrollInterval = null;
+        var globalTouchMoveHandler = null;
         var selectedEntryType = box.fields.entryType || 'Donation';
         if (selectedEntryType.toLowerCase() === 'collector') {
             selectedEntryType = 'Collector';
@@ -531,7 +533,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             // are spliced out on Assign so no filtering needed here)
             html += '<div class="mb-2"><strong>Text Box</strong></div>';
 
-            html += '<div class="ocr-token-container mb-4" style="display: flex; flex-wrap: wrap; align-items: center; padding: 0.5rem; border: 1px solid #dee2e6; border-radius: 4px; background: #fff; min-height: 60px; max-height: 150px; overflow-y: auto; cursor: text;" id="ocrTokenContainer">';
+            html += '<div class="ocr-token-container mb-4" style="display: flex; flex-wrap: wrap; align-items: center; padding: 0.5rem; border: 1px solid #dee2e6; border-radius: 4px; background: #fff; min-height: 60px; max-height: 150px; overflow-y: auto; cursor: text; user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;" id="ocrTokenContainer">';
             tokens.forEach(function (token, index) {
                 var cssClass = 'ocr-token';
                 if (selectedTokenIds.indexOf(index) !== -1) {
@@ -540,7 +542,7 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                         cssClass += ' ocr-token-' + activeField;
                     }
                 }
-                html += '<span class="' + cssClass + '" data-token-index="' + index + '">';
+                html += '<span class="' + cssClass + '" data-token-index="' + index + '" draggable="false">';
                 html += frappe.utils.escape_html(token.value);
                 var selPos = selectedTokenIds.indexOf(index);
                 if (selPos !== -1) {
@@ -629,7 +631,18 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             primary_action_label: 'Submit',
             primary_action: submitBoxEntry,
             secondary_action_label: 'Redo / Reset',
-            secondary_action: resetAssignments
+            secondary_action: resetAssignments,
+            onhide: function() {
+                $(document).off('.ocrDragSelection');
+                if (globalTouchMoveHandler) {
+                    document.removeEventListener('touchmove', globalTouchMoveHandler);
+                    globalTouchMoveHandler = null;
+                }
+                if (scrollInterval) {
+                    clearInterval(scrollInterval);
+                    scrollInterval = null;
+                }
+            }
         });
 
         if (box.fields.donation_date) {
@@ -748,6 +761,29 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             setStatus('Reset all assignments for this box.', 'text-muted');
         }
 
+        function updateDOMSelection() {
+            var $container = dialog.fields_dict.content.$wrapper.find('#ocrTokenContainer');
+            $container.find('.ocr-token').each(function () {
+                var $tok = $(this);
+                var idx = parseInt($tok.attr('data-token-index'), 10);
+                var selPos = selectedTokenIds.indexOf(idx);
+
+                $tok.removeClass(function (index, className) {
+                    return (className.match(/(^|\s)ocr-token-\S+/g) || []).join(' ');
+                });
+                $tok.find('.ocr-token-order').remove();
+
+                if (selPos !== -1) {
+                    $tok.addClass('ocr-token-selected');
+                    if (activeField) {
+                        $tok.addClass('ocr-token-' + activeField);
+                    }
+                    var $order = $('<span class="ocr-token-order">' + (selPos + 1) + '</span>');
+                    $tok.find('.ocr-token-delete').before($order);
+                }
+            });
+        }
+
         function redraw() {
             dialog.set_title('Tag ' + selectedEntryType);
             if (dialog.fields_dict.donation_date) {
@@ -764,20 +800,163 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                 redraw();
             });
 
-            // Token click: select for field assignment (but not if clicking the delete ×)
-            dialog.fields_dict.content.$wrapper.find('.ocr-token').on('click', function (e) {
-                // Ignore clicks on the delete button itself
+            var isDragging = false;
+            var dragStartIndex = null;
+            var dragHasMoved = false;
+            var currentPointerX = null;
+            var currentPointerY = null;
+
+            $(document).off('.ocrDragSelection');
+            if (globalTouchMoveHandler) {
+                document.removeEventListener('touchmove', globalTouchMoveHandler);
+            }
+
+            var $container = dialog.fields_dict.content.$wrapper.find('#ocrTokenContainer');
+            var $tokens = dialog.fields_dict.content.$wrapper.find('.ocr-token');
+
+            function updateSelectionAtPoint(clientX, clientY) {
+                if (clientX === null || clientY === null) return;
+                var elem = document.elementFromPoint(clientX, clientY);
+                if (!elem) return;
+
+                var $token = $(elem).closest('.ocr-token');
+                if ($token.length) {
+                    var currentIndex = parseInt($token.attr('data-token-index'), 10);
+                    if (!isNaN(currentIndex)) {
+                        if (currentIndex !== dragStartIndex) {
+                            dragHasMoved = true;
+                        }
+                        var newSelection = [];
+                        if (dragStartIndex <= currentIndex) {
+                            for (var i = dragStartIndex; i <= currentIndex; i++) {
+                                newSelection.push(i);
+                            }
+                        } else {
+                            for (var i = dragStartIndex; i >= currentIndex; i--) {
+                                newSelection.push(i);
+                            }
+                        }
+                        selectedTokenIds = newSelection;
+                        updateDOMSelection();
+                    }
+                }
+            }
+
+            function startScrollInterval() {
+                if (scrollInterval) clearInterval(scrollInterval);
+                scrollInterval = setInterval(function () {
+                    if (!isDragging || currentPointerY === null) return;
+                    var containerEl = $container[0];
+                    if (!containerEl) return;
+
+                    var rect = containerEl.getBoundingClientRect();
+                    var scrollSpeed = 0;
+                    var edgeBuffer = 30; // px boundary threshold
+
+                    if (currentPointerX >= rect.left && currentPointerX <= rect.right) {
+                        if (currentPointerY > rect.bottom - edgeBuffer && currentPointerY < rect.bottom + 15) {
+                            scrollSpeed = Math.min(10, (currentPointerY - (rect.bottom - edgeBuffer)) * 0.4);
+                        } else if (currentPointerY < rect.top + edgeBuffer && currentPointerY > rect.top - 15) {
+                            scrollSpeed = -Math.min(10, ((rect.top + edgeBuffer) - currentPointerY) * 0.4);
+                        }
+                    }
+
+                    if (scrollSpeed !== 0) {
+                        containerEl.scrollTop += scrollSpeed;
+                        updateSelectionAtPoint(currentPointerX, currentPointerY);
+                    }
+                }, 30);
+            }
+
+            function endDrag() {
+                if (isDragging) {
+                    isDragging = false;
+                    if (scrollInterval) {
+                        clearInterval(scrollInterval);
+                        scrollInterval = null;
+                    }
+                    $(document).off('.ocrDragSelection');
+                    if (globalTouchMoveHandler) {
+                        document.removeEventListener('touchmove', globalTouchMoveHandler);
+                        globalTouchMoveHandler = null;
+                    }
+                    if (!dragHasMoved && dragStartIndex !== null) {
+                        var pos = selectedTokenIds.indexOf(dragStartIndex);
+                        if (pos !== -1) {
+                            selectedTokenIds.splice(pos, 1);
+                        } else {
+                            selectedTokenIds.push(dragStartIndex);
+                        }
+                    }
+                    dragStartIndex = null;
+                    redraw();
+                }
+            }
+
+            // Mouse event handlers for desktop
+            $tokens.on('mousedown', function (e) {
                 if ($(e.target).hasClass('ocr-token-delete')) return;
                 if (!activeField) return;
-                var index = parseInt($(this).attr('data-token-index'), 10);
-                var pos = selectedTokenIds.indexOf(index);
-                if (pos !== -1) {
-                    selectedTokenIds.splice(pos, 1); // deselect, preserve order of others
-                } else {
-                    selectedTokenIds.push(index);   // select in click order
-                }
-                redraw();
+                e.preventDefault();
+                isDragging = true;
+                dragStartIndex = parseInt($(this).attr('data-token-index'), 10);
+                dragHasMoved = false;
+                currentPointerX = e.clientX;
+                currentPointerY = e.clientY;
+
+                $(document).on('mousemove.ocrDragSelection', function (event) {
+                    if (!isDragging) return;
+                    currentPointerX = event.clientX;
+                    currentPointerY = event.clientY;
+                    updateSelectionAtPoint(currentPointerX, currentPointerY);
+                });
+
+                startScrollInterval();
             });
+
+            // Prevent desktop dragging behavior
+            $tokens.on('dragstart', function (e) {
+                e.preventDefault();
+            });
+
+            // Define global touchmove handler to be used by addEventListener
+            globalTouchMoveHandler = function (event) {
+                if (!isDragging) return;
+                var tList = event.touches || (event.originalEvent && event.originalEvent.touches);
+                if (!tList || !tList.length) return;
+                var t = tList[0];
+                currentPointerX = t.clientX;
+                currentPointerY = t.clientY;
+
+                // Stop default browser scroll/drag
+                event.preventDefault();
+
+                updateSelectionAtPoint(currentPointerX, currentPointerY);
+            };
+
+            // Touch event handlers for mobile using vanilla JS for non-passive listeners
+            $tokens.each(function () {
+                this.addEventListener('touchstart', function (e) {
+                    if ($(e.target).hasClass('ocr-token-delete')) return;
+                    if (!activeField) return;
+                    e.preventDefault(); // Stop native drag/scroll/selection immediately
+
+                    isDragging = true;
+                    dragStartIndex = parseInt($(this).attr('data-token-index'), 10);
+                    dragHasMoved = false;
+
+                    var touches = e.touches || (e.originalEvent && e.originalEvent.touches);
+                    if (!touches || !touches.length) return;
+                    var touch = touches[0];
+                    currentPointerX = touch.clientX;
+                    currentPointerY = touch.clientY;
+
+                    document.addEventListener('touchmove', globalTouchMoveHandler, { passive: false });
+                    startScrollInterval();
+                }, { passive: false });
+            });
+
+            $(document).on('mouseup.ocrDragSelection touchend.ocrDragSelection', endDrag);
 
             // Token delete × button
             dialog.fields_dict.content.$wrapper.find('.ocr-token-delete').on('click', function (e) {
@@ -794,8 +973,6 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                     var word = $input.val().trim();
                     if (word) {
                         addNewToken(word);
-                    } else {
-                        // empty space — just focus stays
                     }
                 }
             });
@@ -840,10 +1017,6 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                 var indicesToRemove = selectedTokenIds.slice().sort(function (a, b) { return b - a; });
                 indicesToRemove.forEach(function (i) { tokens.splice(i, 1); });
                 rebuildBoxText();
-                // NOTE: No persistJsonData() here — calling it on every assign creates
-                // a race condition where a stale async write can arrive AFTER the
-                // submit's saveVerifiedBoxToJson write, resurrecting the old merged box.
-                // The final DB write happens in saveVerifiedBoxToJson on submit.
 
                 activeField = null;
                 selectedTokenIds.length = 0;
