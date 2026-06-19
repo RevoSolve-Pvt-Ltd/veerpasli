@@ -84,6 +84,63 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
     var pageId = null;
     var isLoadingPageData = false;
 
+    function debounce(func, wait) {
+        var timeout;
+        return function () {
+            var context = this, args = arguments;
+            clearTimeout(timeout);
+            timeout = setTimeout(function () {
+                func.apply(context, args);
+            }, wait);
+        };
+    }
+
+    function get_suggestions(text, lang) {
+        return new Promise(function (resolve) {
+            if (lang === "gu") {
+                var url = "https://inputtools.google.com/request?text=" + encodeURIComponent(text) + "&itc=gu-t-i0-und&num=13&cp=0&cs=1&ie=utf-8&oe=utf-8&app=jsapi";
+                fetch(url)
+                    .then(function (res) { return res.json(); })
+                    .then(function (data) {
+                        if (data && data[0] === "SUCCESS" && data[1] && data[1][0] && data[1][0][1]) {
+                            resolve(data[1][0][1]);
+                        } else {
+                            resolve([]);
+                        }
+                    })
+                    .catch(function () {
+                        frappe.call({
+                            method: "veerpasli.veerpasli.doctype.veerpasli_pdf.veerpasli_pdf.get_input_suggestions",
+                            args: { text: text, lang: "gu" },
+                            callback: function (r) {
+                                resolve(r.message || []);
+                            }
+                        });
+                    });
+            } else {
+                var url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=gu&tl=en&dt=t&q=" + encodeURIComponent(text);
+                fetch(url)
+                    .then(function (res) { return res.json(); })
+                    .then(function (data) {
+                        if (data && data[0] && data[0][0] && data[0][0][0]) {
+                            resolve([data[0][0][0].trim()]);
+                        } else {
+                            resolve([]);
+                        }
+                    })
+                    .catch(function () {
+                        frappe.call({
+                            method: "veerpasli.veerpasli.doctype.veerpasli_pdf.veerpasli_pdf.get_input_suggestions",
+                            args: { text: text, lang: "en" },
+                            callback: function (r) {
+                                resolve(r.message || []);
+                            }
+                        });
+                    });
+            }
+        });
+    }
+
     function setStatus(message, type) {
         $status.removeClass('text-success text-danger text-muted');
         $status.addClass(type || 'text-muted');
@@ -543,7 +600,8 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             // are spliced out on Assign so no filtering needed here)
             html += '<div class="mb-2"><strong>Text Box</strong></div>';
 
-            html += '<div class="ocr-token-container mb-4" style="display: flex; flex-wrap: wrap; align-items: center; padding: 0.5rem; border: 1px solid #dee2e6; border-radius: 4px; background: #fff; min-height: 60px; max-height: 150px; overflow-y: auto; cursor: text; user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;" id="ocrTokenContainer">';
+            html += '<div class="position-relative mb-4">';
+            html += '<div class="ocr-token-container" style="display: flex; flex-wrap: wrap; align-items: center; padding: 0.5rem; border: 1px solid #dee2e6; border-radius: 4px; background: #fff; min-height: 60px; max-height: 150px; overflow-y: auto; cursor: text; user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none;" id="ocrTokenContainer">';
             tokens.forEach(function (token, index) {
                 var cssClass = 'ocr-token';
                 if (selectedTokenIds.indexOf(index) !== -1) {
@@ -566,6 +624,8 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             }
             // Inline editable input appended after all tokens
             html += '<input type="text" id="ocrNewTokenInput" class="ocr-token-new-input" placeholder="type &amp; press space" autocomplete="off" />';
+            html += '</div>';
+            html += '<div class="ocr-input-suggestions" style="position: absolute; top: 100%; left: 0; right: 0; z-index: 1100; background: #fff; border: 1px solid #d1d8dd; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 150px; overflow-y: auto; display: none; margin-top: 2px;"></div>';
             html += '</div>';
 
             // 3. Tag Selection
@@ -1033,6 +1093,54 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                         addNewToken(word);
                     }
                 }
+            });
+
+            // Suggestions logic
+            var $suggestions = dialog.fields_dict.content.$wrapper.find('.ocr-input-suggestions');
+            var fetch_suggestions = debounce(function (val) {
+                val = (val || '').trim();
+                if (!val || val.length < 2) {
+                    $suggestions.hide();
+                    return;
+                }
+
+                get_suggestions(val, "gu").then(function (list) {
+                    render_list(list);
+                });
+            }, 300);
+
+            function render_list(list) {
+                $suggestions.empty();
+                if (list && list.length > 0) {
+                    list.forEach(function (item) {
+                        var $item = $('<div style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f1f3f5; font-size: 13px; color: #212529; font-weight: 500; text-align: left;"></div>').text(item);
+                        $item.on('mousedown', function (e) {
+                            e.preventDefault();
+                        });
+                        $item.on('click', function () {
+                            $suggestions.hide();
+                            addNewToken(item);
+                        });
+                        $suggestions.append($item);
+                    });
+                    $suggestions.show();
+                } else {
+                    $suggestions.hide();
+                }
+            }
+
+            $input.on('input', function () {
+                fetch_suggestions($(this).val());
+            });
+
+            $input.on('focus', function () {
+                fetch_suggestions($(this).val());
+            });
+
+            $input.on('blur', function () {
+                setTimeout(function () {
+                    $suggestions.hide();
+                }, 200);
             });
             // Clicking anywhere inside the container focuses the input
             dialog.fields_dict.content.$wrapper.find('#ocrTokenContainer').on('click', function (e) {
