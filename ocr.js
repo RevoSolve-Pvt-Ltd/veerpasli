@@ -9,7 +9,8 @@ if (!imagePath) {
     process.exit(1);
 }
 
-const lens = new Lens();
+const targetLanguage = process.argv[3] !== undefined ? process.argv[3] : '';
+const lens = new Lens({ targetLanguage });
 
 lens.scanByFile(imagePath).then(data => {
     const parsedPath = path.parse(imagePath);
