@@ -268,9 +268,6 @@ def process_ocr_box(image_url, box, page_id=None):
 	location_doc = get_or_create_location(location_name)
 
 	if entry_type == 'collector':
-		if not village_name:
-			frappe.throw("Village is required for Collector.")
-
 		# Clean up previous donation if entry type changed
 		if ref_donation_id and frappe.db.exists('Donation', ref_donation_id):
 			try:
@@ -289,11 +286,12 @@ def process_ocr_box(image_url, box, page_id=None):
 			ref_donation_id = None
 
 		person_id = ref_person_id
+		effective_village = village_name or 'Unknown Village'
 
 		if person_id and frappe.db.exists('Person', person_id):
 			# Step 1: Rename primary key first (also syncs gujarati_fullname via update_autoname_field)
 			guj_name, eng_name = get_translated_names(name)
-			target_name = f"{guj_name} - {village_name}"
+			target_name = f"{guj_name} - {effective_village}"
 			if person_id != target_name:
 				try:
 					target_exists = frappe.db.exists('Person', target_name)
@@ -303,7 +301,7 @@ def process_ocr_box(image_url, box, page_id=None):
 
 			# Step 2: Get the correct village (create if needed) and read the old one for cleanup
 			old_person_village = frappe.db.get_value('Person', person_id, 'village_gujarati_name') or ''
-			village_doc = get_or_create_village(village_name)
+			village_doc = get_or_create_village(effective_village)
 
 			# Step 3: Update all remaining fields directly in DB (safe, bypasses unique constraint on autoname field)
 			current_mobile = frappe.db.get_value('Person', person_id, 'mobile_number') or ''
@@ -325,7 +323,7 @@ def process_ocr_box(image_url, box, page_id=None):
 			person_doc = frappe.get_doc('Person', person_id)
 			add_collector_location(person_doc, location_doc.name)
 		else:
-			village_doc = get_or_create_village(village_name)
+			village_doc = get_or_create_village(effective_village)
 			person = get_or_create_person(
 				name,
 				village_doc,

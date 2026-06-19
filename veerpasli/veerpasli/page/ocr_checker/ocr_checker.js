@@ -738,10 +738,6 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
             if (selectedEntryType === 'Donation' && !box.fields.amount) {
                 missing.push('amount (for Donation)');
             }
-            if (selectedEntryType === 'Collector' && !box.fields.village) {
-                missing.push('village (for Collector)');
-            }
-
             if (missing.length) {
                 frappe.msgprint('Please assign the following fields: ' + missing.join(', '));
                 return;
