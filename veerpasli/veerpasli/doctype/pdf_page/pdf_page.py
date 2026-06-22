@@ -118,15 +118,9 @@ def process_ocr_page(image_url, boxes, page_id=None):
 	if not isinstance(boxes, list):
 		frappe.throw("Invalid boxes payload.")
 
-	if page_id:
-		location_name = extract_location_from_image_url(page_id)
-	else:
-		location_name = extract_location_from_image_url(image_url)
-	if not location_name:
-		frappe.throw("Unable to parse location from image filename.")
-
-	# Ensure location exists
-	location_doc = get_or_create_location(location_name)
+	location_doc = get_location_from_context(page_id, image_url)
+	if not location_doc:
+		frappe.throw("Unable to determine page location.")
 
 	# First pass: create villages and collectors (phone boxes)
 	collector_cache = {}
@@ -258,14 +252,9 @@ def process_ocr_box(image_url, box, page_id=None):
 	if not name:
 		frappe.throw("Name is required.")
 
-	if page_id:
-		location_name = extract_location_from_image_url(page_id)
-	else:
-		location_name = extract_location_from_image_url(image_url)
-	if not location_name:
-		frappe.throw("Unable to parse location from image filename.")
-
-	location_doc = get_or_create_location(location_name)
+	location_doc = get_location_from_context(page_id, image_url)
+	if not location_doc:
+		frappe.throw("Unable to determine page location.")
 
 	if entry_type == 'collector':
 		# Clean up previous donation if entry type changed
@@ -746,8 +735,14 @@ def update_ocr_boxes(page_id, boxes):
 		if ref['person'] and ref['person'] not in new_persons:
 			if ref['entry_type'] == 'collector':
 				try:
-					location_name = extract_location_from_image_url(doc.name)
-					remove_person_tagged_box('Collector', f"{ref['person']}:{location_name}")
+					# Clean up using the page's actual location if set
+					location_name = doc.location
+					if location_name:
+						remove_person_tagged_box('Collector', f"{ref['person']}:{location_name}")
+					# Also clean up using the filename-parsed location for legacy compatibility
+					filename_loc = extract_location_from_image_url(doc.name)
+					if filename_loc and filename_loc != location_name:
+						remove_person_tagged_box('Collector', f"{ref['person']}:{filename_loc}")
 					cleanup_person_if_orphaned(ref['person'])
 				except Exception:
 					pass
@@ -828,6 +823,35 @@ def extract_location_from_image_url(image_url):
 		return match.group(1)
 	match = re.match(r'^veerpasli-(.+)-(\d{4})([-_].+)?$', filename, re.IGNORECASE)
 	return match.group(1) if match else filename
+
+
+def get_location_from_context(page_id=None, image_url=None):
+	location_doc = None
+	if page_id and frappe.db.exists("Pdf page", page_id):
+		page_loc = frappe.db.get_value("Pdf page", page_id, "location")
+		if page_loc:
+			location_doc = frappe.get_doc("Location", page_loc)
+	if not location_doc and image_url:
+		parsed_url = urlparse(image_url)
+		clean_url = unquote(parsed_url.path or image_url)
+		page_loc = frappe.db.get_value("Pdf page", {"page_file": clean_url}, "location")
+		if not page_loc:
+			page_loc = frappe.db.get_value("Pdf page", {"page_file": ["like", f"%{os.path.basename(clean_url)}%"]}, "location")
+		if page_loc:
+			location_doc = frappe.get_doc("Location", page_loc)
+
+	if not location_doc:
+		if page_id:
+			location_name = extract_location_from_image_url(page_id)
+		elif image_url:
+			location_name = extract_location_from_image_url(image_url)
+		else:
+			location_name = None
+
+		if location_name:
+			location_doc = get_or_create_location(location_name)
+
+	return location_doc
 
 
 def normalize_mobile_number(mobile):
@@ -1238,4 +1262,5 @@ def ocr_crop(page_id, box):
 			"perHeight": height_p
 		}
 	}
+
 

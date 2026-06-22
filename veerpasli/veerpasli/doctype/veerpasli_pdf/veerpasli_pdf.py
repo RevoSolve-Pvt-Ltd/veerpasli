@@ -167,6 +167,7 @@ class VeerpasliPDF(Document):
 					"page_number": current_page_num,
 					"page_file": single_page_file.file_url,
 					"year": year,
+					"location": self.location,
 					"status": "pending"
 				})
 				page_doc.insert()
