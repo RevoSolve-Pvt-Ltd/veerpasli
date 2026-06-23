@@ -1,0 +1,320 @@
+{% extends "templates/web.html" %}
+
+{% block page_content %}
+<div class="receipt-container my-5">
+	{% if unauthorized %}
+		<div class="alert alert-danger text-center shadow-sm no-print">
+			<h4 class="alert-heading"><i class="fa fa-lock"></i> Access Denied</h4>
+			<p>You must be registered as a Collector to view this receipt.</p>
+			<hr>
+			<p class="mb-0"><a href="/login" class="btn btn-primary btn-sm">Log in as Collector</a></p>
+		</div>
+	{% elif error %}
+		<div class="alert alert-warning text-center shadow-sm no-print">
+			<h4 class="alert-heading"><i class="fa fa-exclamation-triangle"></i> Error</h4>
+			<p>{{ error }}</p>
+			<hr>
+			<p class="mb-0"><a href="/donations" class="btn btn-secondary btn-sm">Go to Dashboard</a></p>
+		</div>
+	{% else %}
+		<!-- Actions Bar (Hidden on Print) -->
+		<div class="d-flex justify-content-between align-items-center mb-4 no-print">
+			<a href="/donations" class="btn btn-outline-secondary">
+				<i class="fa fa-arrow-left mr-1"></i> Dashboard
+			</a>
+			<div>
+				<button id="download_pdf_btn" class="btn btn-primary btn-lg shadow-sm mr-2">
+					<i class="fa fa-download mr-1"></i> Download PDF
+				</button>
+				<button onclick="window.print()" class="btn btn-outline-primary btn-lg shadow-sm">
+					<i class="fa fa-print mr-1"></i> Print
+				</button>
+			</div>
+		</div>
+
+		<!-- Premium Receipt Card -->
+		<div class="card receipt-card border-0 shadow">
+			<div class="receipt-border">
+				<div class="receipt-inner">
+					
+					<!-- Header Section -->
+					<div class="receipt-header text-center mb-4">
+						<div class="org-logo mb-2">
+							<i class="fa fa-hand-holding-heart fa-3x text-primary"></i>
+						</div>
+						<h1 class="org-title mb-1">વીરપસલી (VEERPASLI)</h1>
+						<div class="receipt-title-badge px-3 py-1">
+							<span class="font-weight-bold text-uppercase tracking-wider">Donation Receipt / દાન રસીદ</span>
+						</div>
+					</div>
+
+					<!-- Details Grid -->
+					<div class="row mb-4">
+						<div class="col-6 mb-2">
+							<span class="details-label text-muted d-block">Receipt No / રસીદ નં:</span>
+							<strong class="details-value">{{ donation.name }}</strong>
+						</div>
+						<div class="col-6 mb-2 text-right">
+							<span class="details-label text-muted d-block">Date / તારીખ:</span>
+							<strong class="details-value">{{ donation.donation_date }}</strong>
+						</div>
+						<div class="col-6 mb-2">
+							<span class="details-label text-muted d-block">Village / ગામ:</span>
+							<strong class="details-value">
+								{{ donation.village }}
+								{% if village_english %}
+									<span class="details-sub">({{ village_english }})</span>
+								{% endif %}
+							</strong>
+						</div>
+						<div class="col-6 mb-2 text-right">
+							<span class="details-label text-muted d-block">Location / સ્થળ:</span>
+							<strong class="details-value">
+								{{ donation.location }}
+								{% if location_english %}
+									<span class="details-sub">({{ location_english }})</span>
+								{% endif %}
+							</strong>
+						</div>
+					</div>
+
+					<hr class="receipt-divider">
+
+					<!-- Donor Information -->
+					<div class="mb-4">
+						<span class="details-label text-muted d-block">Received From / દાતાનું નામ:</span>
+						<h3 class="donor-title text-primary font-weight-bold mb-1">
+							{{ takti_gujarati }}
+						</h3>
+						{% if takti_english %}
+							<h5 class="text-muted font-weight-normal mb-0">({{ takti_english }})</h5>
+						{% endif %}
+					</div>
+
+					<!-- Hastes (Breakdown Table if exists and has more than 1 donor or different from main) -->
+					{% if donors_list and (donors_list|length > 1 or donors_list[0].gujarati_fullname != takti_gujarati) %}
+						<div class="mb-4">
+							<h6 class="font-weight-bold text-muted text-uppercase tracking-wider mb-2">
+								<i class="fa fa-users"></i> Haste Breakdown / હસ્તે વિગત:
+							</h6>
+							<div class="table-responsive">
+								<table class="table table-bordered table-sm mb-0">
+									<thead class="bg-light">
+										<tr>
+											<th>Haste Name (હસ્તે)</th>
+											<th class="text-right" style="width: 150px;">Amount (રકમ)</th>
+										</tr>
+									</thead>
+									<tbody>
+										{% for d in donors_list %}
+											<tr>
+												<td>
+													<strong>{{ d.gujarati_fullname }}</strong>
+													{% if d.english_fullname %}
+														<span class="text-muted small">({{ d.english_fullname }})</span>
+													{% endif %}
+												</td>
+												<td class="text-right font-weight-bold">
+													₹{{ d.amount }}
+												</td>
+											</tr>
+										{% endfor %}
+									</tbody>
+								</table>
+							</div>
+						</div>
+					{% endif %}
+
+					<hr class="receipt-divider">
+
+					<!-- Amount Section -->
+					<div class="amount-box bg-light p-3 rounded mb-4 d-flex align-items-center justify-content-between">
+						<div>
+							<span class="details-label text-muted d-block">Total Amount / કુલ રકમ:</span>
+							<h4 class="mb-0 font-weight-bold text-success">
+								₹{{ donation.amount_english }} /-
+							</h4>
+						</div>
+						<div class="text-right">
+							<span class="details-label text-muted d-block">Amount in words (Gujarati):</span>
+							<h5 class="mb-0 text-dark font-weight-bold">
+								રૂપિયા {{ donation.amount_gujarati }} પૂરા
+							</h5>
+						</div>
+					</div>
+
+					<!-- Footer Signatures -->
+					<div class="row mt-5 pt-3 align-items-end">
+						<div class="col-6">
+							<span class="details-label text-muted d-block">Collected By / સંગ્રહકર્તા:</span>
+							<strong class="d-block">{{ collector_name_guj }}</strong>
+							{% if collector_name_eng %}
+								<small class="text-muted d-block">({{ collector_name_eng }})</small>
+							{% endif %}
+						</div>
+						<div class="col-6 text-right">
+							<div class="signature-space d-inline-block text-center" style="width: 180px;">
+								<hr class="mb-1" style="border-top: 1px dashed #bbb;">
+								<span class="details-label text-muted small d-block">Signature / Stamp (સહી)</span>
+							</div>
+						</div>
+					</div>
+
+				</div>
+			</div>
+		</div>
+	{% endif %}
+</div>
+
+<style>
+	:root {
+		--primary-color: #4f46e5;
+		--success-color: #28a745;
+	}
+
+	.receipt-container {
+		max-width: 700px;
+		margin: 0 auto;
+	}
+
+	.receipt-card {
+		background: #ffffff;
+		border-radius: 16px;
+		padding: 24px;
+	}
+
+	.receipt-border {
+		border: 4px double #e5e7eb;
+		border-radius: 8px;
+		padding: 24px;
+	}
+
+	.receipt-inner {
+		position: relative;
+	}
+
+	.org-title {
+		font-weight: 800;
+		color: #1f2937;
+		font-size: 1.8rem;
+		letter-spacing: 0.05em;
+	}
+
+	.receipt-title-badge {
+		background: #f3f4f6;
+		border-radius: 20px;
+		display: inline-block;
+	}
+
+	.receipt-title-badge span {
+		font-size: 0.85rem;
+		color: #4b5563;
+	}
+
+	.details-label {
+		font-size: 0.8rem;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+	}
+
+	.details-value {
+		font-size: 1.1rem;
+		color: #1f2937;
+	}
+
+	.details-sub {
+		font-size: 0.9rem;
+		font-weight: normal;
+		color: #6b7280;
+	}
+
+	.donor-title {
+		font-size: 1.5rem;
+	}
+
+	.receipt-divider {
+		border-top: 1px dashed #d1d5db;
+		margin: 1.5rem 0;
+	}
+
+	.amount-box {
+		border-left: 5px solid var(--success-color);
+	}
+
+	.tracking-wider {
+		letter-spacing: 0.07em;
+	}
+
+	/* Print styles */
+	@media print {
+		body {
+			background: white !important;
+			color: black !important;
+		}
+
+		.no-print {
+			display: none !important;
+		}
+
+		.receipt-container {
+			max-width: 100% !important;
+			margin: 0 !important;
+			padding: 0 !important;
+		}
+
+		.receipt-card {
+			box-shadow: none !important;
+			border: none !important;
+			padding: 0 !important;
+		}
+
+		.receipt-border {
+			border: 4px double #000 !important;
+			border-radius: 0 !important;
+			padding: 20px !important;
+		}
+
+		.amount-box {
+			border: 1px solid #ccc !important;
+			border-left: 5px solid #28a745 !important;
+			background-color: #f9f9f9 !important;
+			-webkit-print-color-adjust: exact;
+			print-color-adjust: exact;
+		}
+	}
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script>
+	document.addEventListener("DOMContentLoaded", function() {
+		const downloadBtn = document.getElementById('download_pdf_btn');
+		if (downloadBtn) {
+			downloadBtn.addEventListener('click', function() {
+				const originalText = downloadBtn.innerHTML;
+				downloadBtn.disabled = true;
+				downloadBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-1"></i> Downloading...';
+
+				const element = document.querySelector('.receipt-card');
+				const opt = {
+					margin:       [0.4, 0.4, 0.4, 0.4],
+					filename:     'Receipt-' + '{{ donation.name }}' + '.pdf',
+					image:        { type: 'jpeg', quality: 0.98 },
+					html2canvas:  { scale: 2, useCORS: true },
+					jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+				};
+
+				setTimeout(function() {
+					html2pdf().set(opt).from(element).save().then(() => {
+						downloadBtn.disabled = false;
+						downloadBtn.innerHTML = originalText;
+					}).catch(err => {
+						console.error(err);
+						downloadBtn.disabled = false;
+						downloadBtn.innerHTML = originalText;
+					});
+				}, 100);
+			});
+		}
+	});
+</script>
+{% endblock %}

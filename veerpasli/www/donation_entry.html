@@ -427,7 +427,14 @@
 					submitBtn.innerHTML = '<i class="fa fa-check-circle"></i> Save Donation';
 
 					if (r.message && r.message.status === 'success') {
-						showMsg(`Donation of <strong>₹${amount}</strong> from <strong>${r.message.donor_name}</strong> saved successfully!`, 'success');
+						showMsg(`
+							<div class="d-flex align-items-center justify-content-between flex-wrap">
+								<span>Donation of <strong>₹${amount}</strong> from <strong>${r.message.donor_name}</strong> saved successfully!</span>
+								<a href="/donation_receipt?name=${encodeURIComponent(r.message.donation_id)}" target="_blank" class="btn btn-sm btn-success mt-2 mt-sm-0 ml-sm-3">
+									<i class="fa fa-file-invoice"></i> View/Download Receipt
+								</a>
+							</div>
+						`, 'success');
 						donationForm.reset();
 						donorIdInput.value = '';
 						donorSearch.value = '';

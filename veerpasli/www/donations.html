@@ -247,12 +247,7 @@
 
 <script>
 	function downloadReceipt(donationId) {
-		// As requested, this functionality is currently placeholder/non-functional
-		frappe.msgprint({
-			title: 'Receipt Download',
-			indicator: 'blue',
-			message: 'Receipt generation for <strong>' + donationId + '</strong> is coming soon. Please test the donation creation flow first!'
-		});
+		window.open('/donation_receipt?name=' + encodeURIComponent(donationId), '_blank');
 	}
 
 	document.addEventListener("DOMContentLoaded", function() {
