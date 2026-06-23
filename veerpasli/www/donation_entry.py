@@ -1,7 +1,12 @@
 import frappe
 import json
 from frappe import _
-from veerpasli.veerpasli.doctype.pdf_page.pdf_page import get_or_create_village, get_translated_names
+from veerpasli.veerpasli.doctype.pdf_page.pdf_page import (
+	get_or_create_village,
+	get_translated_names,
+	get_or_create_person,
+	distribute_amount_equally
+)
 
 def get_context(context):
 	# 1. Require Login
@@ -89,7 +94,7 @@ def search_donor(query):
 
 
 @frappe.whitelist()
-def create_web_donation(donor_data, amount, village, location, donation_date=None):
+def create_web_donation(donor_data, amount, village, location, donation_date=None, hastes=None):
 	"""
 	Create a Donation document from the web form submission.
 	donor_data should be a JSON/dict containing:
@@ -112,6 +117,11 @@ def create_web_donation(donor_data, amount, village, location, donation_date=Non
 
 	if isinstance(donor_data, str):
 		donor_data = json.loads(donor_data)
+
+	if isinstance(hastes, str):
+		hastes = json.loads(hastes)
+	elif not hastes:
+		hastes = []
 
 	amount = int(amount)
 	if amount <= 0:
@@ -167,6 +177,7 @@ def create_web_donation(donor_data, amount, village, location, donation_date=Non
 		village_doc = get_or_create_village(village)
 		village_link = village_doc.name
 	else:
+		village_doc = None
 		village_link = None
 
 	# 4. Create and Submit Donation
@@ -184,8 +195,29 @@ def create_web_donation(donor_data, amount, village, location, donation_date=Non
 		"donation_date": donation_date or frappe.utils.today(),
 		"village": village_link,
 		"location": location,
-		"collector": collector
+		"collector": collector,
+		"list_of_donors": []
 	})
+
+	# Clean and filter haste names
+	haste_names = [h.strip() for h in hastes if h and h.strip()]
+
+	if not haste_names:
+		donation.append("list_of_donors", {
+			"donor_name": donor_name,
+			"amount": amount
+		})
+	else:
+		if not village_doc:
+			frappe.throw(_("Village is required to register haste names."))
+		
+		distributed_amounts = distribute_amount_equally(amount, len(haste_names))
+		for idx, haste_name in enumerate(haste_names):
+			haste_person = get_or_create_person(haste_name, village_doc, '', is_collector=False)
+			donation.append("list_of_donors", {
+				"donor_name": haste_person.name,
+				"amount": distributed_amounts[idx]
+			})
 	
 	donation.insert(ignore_permissions=True)
 	donation.submit()

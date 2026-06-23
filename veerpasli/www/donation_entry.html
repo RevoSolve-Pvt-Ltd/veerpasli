@@ -119,6 +119,24 @@
 						</div>
 					</div>
 
+					<!-- Hastes Section -->
+					<div class="card bg-light border-0 mb-4 p-3">
+						<div class="d-flex align-items-center justify-content-between mb-3">
+							<h5 class="mb-0 text-muted font-weight-bold">
+								<i class="fa fa-users"></i> Hastes / Through (હસ્તે)
+							</h5>
+							<button type="button" id="add_haste_btn" class="btn btn-sm btn-outline-primary">
+								<i class="fa fa-plus"></i> Add Haste (હસ્તે ઉમેરો)
+							</button>
+						</div>
+						<div id="hastes_container">
+							<!-- Dynamic haste inputs will be appended here -->
+						</div>
+						<small class="form-text text-muted mt-2">
+							If Hastes are added, the total amount will be split equally among all Hastes.
+						</small>
+					</div>
+
 					<!-- Date -->
 					<div class="form-group col-md-6 px-0">
 						<label class="form-label font-weight-bold" for="donation_date">Donation Date <span class="text-danger">*</span></label>
@@ -250,6 +268,33 @@
 		const amountInput = document.getElementById('donation_amount');
 		const locationInput = document.getElementById('donation_location');
 
+		const addHasteBtn = document.getElementById('add_haste_btn');
+		const hastesContainer = document.getElementById('hastes_container');
+
+		if (addHasteBtn && hastesContainer) {
+			addHasteBtn.addEventListener('click', function() {
+				const rowId = 'haste_row_' + Date.now();
+				const row = document.createElement('div');
+				row.className = 'input-group mb-2';
+				row.id = rowId;
+				row.innerHTML = `
+					<input type="text" class="form-control haste-input" placeholder="Enter Haste Name (હસ્તે નામ)" required autocomplete="off">
+					<div class="input-group-append">
+						<button type="button" class="btn btn-outline-danger remove-haste-btn" data-row-id="${rowId}">
+							✕ Remove
+						</button>
+					</div>
+				`;
+				hastesContainer.appendChild(row);
+
+				row.querySelector('.remove-haste-btn').addEventListener('click', function() {
+					const idToRemove = this.getAttribute('data-row-id');
+					const el = document.getElementById(idToRemove);
+					if (el) el.remove();
+				});
+			});
+		}
+
 		const donationForm = document.getElementById('donation_form');
 		const submitBtn = document.getElementById('submit_btn');
 		const formMsg = document.getElementById('form_message');
@@ -358,6 +403,15 @@
 				mobile_number: mobileInput.value.trim()
 			};
 
+			const hasteInputs = document.querySelectorAll('.haste-input');
+			const hastes = [];
+			hasteInputs.forEach(input => {
+				const val = input.value.trim();
+				if (val) {
+					hastes.push(val);
+				}
+			});
+
 			frappe.call({
 				method: 'veerpasli.www.donation_entry.create_web_donation',
 				args: {
@@ -365,7 +419,8 @@
 					amount: amount,
 					village: villageInput.value.trim(),
 					location: locationInput.value,
-					donation_date: dateInput.value
+					donation_date: dateInput.value,
+					hastes: hastes
 				},
 				callback: function(r) {
 					submitBtn.disabled = false;
@@ -377,6 +432,9 @@
 						donorIdInput.value = '';
 						donorSearch.value = '';
 						dateInput.value = today;
+						if (hastesContainer) {
+							hastesContainer.innerHTML = '';
+						}
 						
 						// Scroll to message
 						formMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
