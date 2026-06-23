@@ -3,162 +3,167 @@
 {% block page_content %}
 <div class="donation-portal-container">
 	{% if unauthorized %}
-		<div class="alert alert-danger text-center shadow-sm">
-			<h4 class="alert-heading"><i class="fa fa-lock"></i> Access Denied</h4>
-			<p>You must be registered as a Collector to access this page.</p>
-			<hr>
-			<p class="mb-0"><a href="/login" class="btn btn-primary btn-sm">Log in as Collector</a></p>
-		</div>
+	<div class="alert alert-danger text-center shadow-sm">
+		<h4 class="alert-heading"><i class="fa fa-lock"></i> Access Denied</h4>
+		<p>You must be registered as a Collector to access this page.</p>
+		<hr>
+		<p class="mb-0"><a href="/login" class="btn btn-primary btn-sm">Log in as Collector</a></p>
+	</div>
 	{% else %}
-		<!-- Collector Header Card -->
-		<div class="card collector-card border-0 shadow mb-4">
-			<div class="card-body d-flex align-items-center justify-content-between">
-				<div>
-					<h6 class="text-uppercase text-muted mb-1 tracking-wide">Logged-In Collector</h6>
-					<h3 class="collector-name mb-0">
-						{{ collector.gujarati_fullname }}
-						<span class="collector-sub text-muted font-weight-normal">({{ collector.english_fullname }})</span>
-					</h3>
-				</div>
-				<div class="collector-badge">
-					<i class="fa fa-user-circle fa-2x text-primary"></i>
-				</div>
-			</div>
+	<!-- Main Form Card -->
+	<div class="card form-card border-0 shadow">
+		<div class="card-header border-0 bg-white py-3 d-flex align-items-center justify-content-between">
+			<h4 class="mb-0 text-primary font-weight-bold">
+				<i class="fa fa-plus-circle"></i> Create New Donation
+			</h4>
+			<a href="/donations" class="btn btn-outline-secondary btn-sm">
+				<i class="fa fa-arrow-left"></i> Dashboard
+			</a>
 		</div>
-
-		<!-- Main Form Card -->
-		<div class="card form-card border-0 shadow">
-			<div class="card-header border-0 bg-white py-3 d-flex align-items-center justify-content-between">
-				<h4 class="mb-0 text-primary font-weight-bold">
-					<i class="fa fa-plus-circle"></i> Create New Donation
-				</h4>
-				<a href="/donations" class="btn btn-outline-secondary btn-sm">
-					<i class="fa fa-arrow-left"></i> Dashboard
-				</a>
-			</div>
-			<div class="card-body">
-				<!-- Search Section -->
-				<div class="form-group position-relative mb-4">
-					<label class="form-label font-weight-bold" for="donor_search">
-						<i class="fa fa-search"></i> Search Existing Donor (by Name or Mobile)
-					</label>
-					<div class="input-group">
-						<input type="text" id="donor_search" class="form-control form-control-lg" placeholder="Type name or mobile to lookup..." autocomplete="off">
-						<div class="input-group-append">
-							<button class="btn btn-outline-secondary" type="button" id="clear_search">
-								<i class="fa fa-times"></i>
-							</button>
-						</div>
-					</div>
-					<div id="search_results" class="list-group shadow position-absolute w-100 z-10 d-none">
-						<!-- Results dynamically populated here -->
-					</div>
-					<small class="form-text text-muted">Searching will autofill the donor's name, mobile number, and village.</small>
-				</div>
-
-				<hr class="my-4">
-
-				<form id="donation_form" autocomplete="off">
-					<!-- Hidden Field to Track Selected Person ID -->
-					<input type="hidden" id="selected_donor_id">
-
-					<div class="row">
-						<!-- Donor Name Gujarati -->
-						<div class="col-md-6 form-group">
-							<label class="form-label font-weight-bold" for="donor_name_guj">Donor Gujarati Name <span class="text-danger">*</span></label>
-							<input type="text" id="donor_name_guj" class="form-control" placeholder="દાતાનું નામ (ગુજરાતીમાં)" required>
-						</div>
-
-						<!-- Donor Name English -->
-						<div class="col-md-6 form-group">
-							<label class="form-label font-weight-bold" for="donor_name_eng">Donor English Name</label>
-							<input type="text" id="donor_name_eng" class="form-control" placeholder="Donor Name (English)">
-						</div>
-					</div>
-
-					<div class="row">
-						<!-- Mobile Number -->
-						<div class="col-md-6 form-group">
-							<label class="form-label font-weight-bold" for="donor_mobile">Mobile Number</label>
-							<input type="tel" id="donor_mobile" class="form-control" placeholder="10-digit Mobile Number">
-						</div>
-
-						<!-- Village -->
-						<div class="col-md-6 form-group position-relative">
-							<label class="form-label font-weight-bold" for="donor_village">Village <span class="text-danger">*</span></label>
-							<input type="text" id="donor_village" class="form-control" placeholder="Type village name..." list="village_list" required autocomplete="off">
-							<datalist id="village_list">
-								{% for village in villages %}
-									<option value="{{ village.name }}">{{ village.english_name or '' }}</option>
-								{% endfor %}
-							</datalist>
-						</div>
-					</div>
-
-					<div class="row">
-						<!-- Amount -->
-						<div class="col-md-6 form-group">
-							<label class="form-label font-weight-bold" for="donation_amount">Donation Amount (INR) <span class="text-danger">*</span></label>
-							<div class="input-group">
-								<div class="input-group-prepend">
-									<span class="input-group-text font-weight-bold">₹</span>
-								</div>
-								<input type="number" id="donation_amount" class="form-control" min="1" placeholder="Enter amount in numbers (e.g. 500)" required>
-							</div>
-						</div>
-
-						<!-- Location -->
-						<div class="col-md-6 form-group">
-							<label class="form-label font-weight-bold" for="donation_location">Location <span class="text-danger">*</span></label>
-							<select id="donation_location" class="form-control" required>
-								<option value="">-- Select Location --</option>
-								{% for loc in locations %}
-									<option value="{{ loc.name }}">{{ loc.name }} {% if loc.location_name_english %}({{ loc.location_name_english }}){% endif %}</option>
-								{% endfor %}
-							</select>
-						</div>
-					</div>
-
-					<!-- Hastes Section -->
-					<div class="card bg-light border-0 mb-4 p-3">
-						<div class="d-flex align-items-center justify-content-between mb-3">
-							<h5 class="mb-0 text-muted font-weight-bold">
-								<i class="fa fa-users"></i> Hastes / Through (હસ્તે)
-							</h5>
-							<button type="button" id="add_haste_btn" class="btn btn-sm btn-outline-primary">
-								<i class="fa fa-plus"></i> Add Haste (હસ્તે ઉમેરો)
-							</button>
-						</div>
-						<div id="hastes_container">
-							<!-- Dynamic haste inputs will be appended here -->
-						</div>
-						<small class="form-text text-muted mt-2">
-							If Hastes are added, the total amount will be split equally among all Hastes.
-						</small>
-					</div>
-
-					<!-- Date -->
-					<div class="form-group col-md-6 px-0">
-						<label class="form-label font-weight-bold" for="donation_date">Donation Date <span class="text-danger">*</span></label>
-						<input type="date" id="donation_date" class="form-control" required>
-					</div>
-
-					<div id="form_message" class="alert d-none my-3"></div>
-
-					<!-- Submit -->
-					<div class="text-right mt-4">
-						<button type="submit" id="submit_btn" class="btn btn-primary btn-lg px-5">
-							<i class="fa fa-check-circle"></i> Save Donation
+		<div class="card-body">
+			<!-- Search Section -->
+			<div class="form-group position-relative mb-4">
+				<label class="form-label font-weight-bold" for="donor_search">
+					<i class="fa fa-search"></i> Search Existing Donor (by Name or Mobile)
+				</label>
+				<div class="input-group">
+					<input type="text" id="donor_search" class="form-control form-control-lg"
+						placeholder="Type name or mobile to lookup..." autocomplete="off">
+					<div class="input-group-append">
+						<button class="btn btn-outline-secondary" type="button" id="clear_search">
+							<i class="fa fa-times"></i>
 						</button>
 					</div>
-				</form>
+				</div>
+				<div id="search_results" class="list-group shadow position-absolute w-100 z-10 d-none">
+					<!-- Results dynamically populated here -->
+				</div>
+				<small class="form-text text-muted">Searching will autofill the donor's name, mobile number, and
+					village.</small>
 			</div>
+
+			<hr class="my-4">
+
+			<form id="donation_form" autocomplete="off">
+				<!-- Hidden Field to Track Selected Person ID -->
+				<input type="hidden" id="selected_donor_id">
+
+				<!-- Collector and Date Row (Prefilled & Disabled) -->
+				<div class="row">
+					<div class="col-md-6 form-group">
+						<label class="form-label font-weight-bold" for="collector_display">Collector</label>
+						<input type="text" id="collector_display" class="form-control bg-light text-muted"
+							value="{{ collector.gujarati_fullname }} ({{ collector.english_fullname }})" disabled>
+					</div>
+					<div class="col-md-6 form-group">
+						<label class="form-label font-weight-bold" for="donation_date">Donation Date <span
+								class="text-danger">*</span></label>
+						<input type="date" id="donation_date" class="form-control" required>
+					</div>
+				</div>
+
+				<div class="row">
+					<!-- Donor Name Gujarati -->
+					<div class="col-md-6 form-group">
+						<label class="form-label font-weight-bold" for="donor_name_guj">Donor Gujarati Name <span
+								class="text-danger">*</span></label>
+						<input type="text" id="donor_name_guj" class="form-control"
+							placeholder="દાતાનું નામ (ગુજરાતીમાં)" required>
+					</div>
+
+					<!-- Donor Name English -->
+					<div class="col-md-6 form-group position-relative">
+						<label class="form-label font-weight-bold" for="donor_name_eng">Donor English Name</label>
+						<input type="text" id="donor_name_eng" class="form-control" placeholder="Donor Name (English)">
+						<div id="translation_suggestions" class="list-group position-absolute w-100 shadow d-none"
+							style="z-index: 1000; background: white; border: 1px solid #e5e7eb; border-radius: 8px; top: 100%; left: 0;">
+						</div>
+					</div>
+				</div>
+
+				<div class="row">
+					<!-- Mobile Number -->
+					<div class="col-md-6 form-group">
+						<label class="form-label font-weight-bold" for="donor_mobile">Mobile Number</label>
+						<input type="tel" id="donor_mobile" class="form-control" placeholder="10-digit Mobile Number">
+					</div>
+
+					<!-- Village -->
+					<div class="col-md-6 form-group">
+						<label class="form-label font-weight-bold" for="donor_village">Village <span
+								class="text-danger">*</span></label>
+						<select id="donor_village" class="form-control" required>
+							<option value="">-- Select Village --</option>
+							{% for village in villages %}
+							<option value="{{ village.name }}">{{ village.name }} {% if village.english_name %}({{
+								village.english_name }}){% endif %}</option>
+							{% endfor %}
+						</select>
+					</div>
+				</div>
+
+				<div class="row">
+					<!-- Amount -->
+					<div class="col-md-6 form-group">
+						<label class="form-label font-weight-bold" for="donation_amount">Donation Amount (INR) <span
+								class="text-danger">*</span></label>
+						<div class="input-group">
+							<div class="input-group-prepend">
+								<span class="input-group-text font-weight-bold">₹</span>
+							</div>
+							<input type="number" id="donation_amount" class="form-control" min="1"
+								placeholder="Enter amount in numbers (e.g. 500)" required>
+						</div>
+					</div>
+
+					<!-- Location -->
+					<div class="col-md-6 form-group">
+						<label class="form-label font-weight-bold" for="donation_location">Location <span
+								class="text-danger">*</span></label>
+						<select id="donation_location" class="form-control" required>
+							<option value="">-- Select Location --</option>
+							{% for loc in locations %}
+							<option value="{{ loc.name }}">{{ loc.location_name_english or loc.name }}</option>
+							{% endfor %}
+						</select>
+					</div>
+				</div>
+
+				<!-- Hastes Section -->
+				<div class="card bg-light border-0 mb-4 p-3">
+					<div class="d-flex align-items-center justify-content-between mb-3">
+						<h5 class="mb-0 text-muted font-weight-bold">
+							<i class="fa fa-users"></i> Haste / Through (હસ્તે)
+						</h5>
+						<button type="button" id="add_haste_btn" class="btn btn-sm btn-outline-primary">
+							<i class="fa fa-plus"></i> Add Haste (હસ્તે ઉમેરો)
+						</button>
+					</div>
+					<div id="hastes_container">
+						<!-- Dynamic haste inputs will be appended here -->
+					</div>
+					<small class="form-text text-muted mt-2">
+						If Haste are added, the total amount will be split equally among all Hastes.
+					</small>
+				</div>
+
+				<div id="form_message" class="alert d-none my-3"></div>
+
+				<!-- Submit -->
+				<div class="text-right mt-4">
+					<button type="submit" id="submit_btn" class="btn btn-primary btn-lg px-5">
+						<i class="fa fa-check-circle"></i> Save Donation
+					</button>
+				</div>
+			</form>
 		</div>
+	</div>
 	{% endif %}
 </div>
 
 <style>
-	footer.web-footer, .web-footer {
+	footer.web-footer,
+	.web-footer {
 		display: none !important;
 	}
 
@@ -208,6 +213,11 @@
 		transition: all 0.2s ease;
 	}
 
+	select.form-control {
+		height: calc(1.5em + 1.2rem + 2px) !important;
+		padding: 0.6rem 0.8rem !important;
+	}
+
 	.form-control:focus {
 		border-color: var(--primary-color);
 		box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
@@ -252,7 +262,7 @@
 </style>
 
 <script>
-	document.addEventListener("DOMContentLoaded", function() {
+	document.addEventListener("DOMContentLoaded", function () {
 		// Initialize donation date to 2024-08-01 (1/8/2024)
 		const today = '2024-08-01';
 		const dateInput = document.getElementById('donation_date');
@@ -276,22 +286,79 @@
 		const hastesContainer = document.getElementById('hastes_container');
 
 		if (addHasteBtn && hastesContainer) {
-			addHasteBtn.addEventListener('click', function() {
+			addHasteBtn.addEventListener('click', function () {
 				const rowId = 'haste_row_' + Date.now();
 				const row = document.createElement('div');
 				row.className = 'input-group mb-2';
 				row.id = rowId;
 				row.innerHTML = `
-					<input type="text" class="form-control haste-input" placeholder="Enter Haste Name (હસ્તે નામ)" required autocomplete="off">
+					<div class="position-relative flex-grow-1">
+						<input type="text" class="form-control haste-input" placeholder="Enter Haste Name (હસ્તે નામ)" required autocomplete="off" style="border-top-right-radius: 0; border-bottom-right-radius: 0;">
+						<div class="list-group position-absolute w-100 shadow d-none haste-search-results" style="z-index: 1000; background: white; border: 1px solid #e5e7eb; border-radius: 8px; max-height: 200px; overflow-y: auto; top: 100%; left: 0;"></div>
+					</div>
 					<div class="input-group-append">
-						<button type="button" class="btn btn-outline-danger remove-haste-btn" data-row-id="${rowId}">
-							✕ Remove
+						<button type="button" class="btn btn-danger remove-haste-btn" data-row-id="${rowId}" style="border-top-left-radius: 0; border-bottom-left-radius: 0;">
+							<i class="fa fa-trash"></i> Remove
 						</button>
 					</div>
 				`;
 				hastesContainer.appendChild(row);
 
-				row.querySelector('.remove-haste-btn').addEventListener('click', function() {
+				const input = row.querySelector('.haste-input');
+				const resultsDiv = row.querySelector('.haste-search-results');
+				let hasteSearchTimeout = null;
+
+				input.addEventListener('input', function () {
+					const query = input.value.trim();
+					clearTimeout(hasteSearchTimeout);
+					input.removeAttribute('data-person-id');
+					delete input.dataset.selectedName;
+
+					if (query.length < 2) {
+						resultsDiv.classList.add('d-none');
+						resultsDiv.innerHTML = '';
+						return;
+					}
+
+					hasteSearchTimeout = setTimeout(() => {
+						frappe.call({
+							method: 'veerpasli.www.donation_entry.search_donor',
+							args: { query: query },
+							callback: function (r) {
+								resultsDiv.innerHTML = '';
+								if (r.message && r.message.length > 0) {
+									resultsDiv.classList.remove('d-none');
+									r.message.forEach(person => {
+										const item = document.createElement('a');
+										item.className = 'list-group-item list-group-item-action py-2';
+										item.style.fontSize = '0.9rem';
+										item.innerHTML = `<strong>${person.gujarati_fullname}</strong> (${person.english_fullname || ''}) <span class="text-muted" style="font-size:0.8rem"> - ${person.village_gujarati_name}</span>`;
+										item.addEventListener('click', function (e) {
+											e.preventDefault();
+											input.value = person.gujarati_fullname;
+											input.setAttribute('data-person-id', person.name);
+											input.dataset.selectedName = person.gujarati_fullname;
+											resultsDiv.classList.add('d-none');
+											resultsDiv.innerHTML = '';
+										});
+										resultsDiv.appendChild(item);
+									});
+								} else {
+									resultsDiv.classList.add('d-none');
+								}
+							}
+						});
+					}, 300);
+				});
+
+				// Close results on clicking outside
+				document.addEventListener('click', function (e) {
+					if (!input.contains(e.target) && !resultsDiv.contains(e.target)) {
+						resultsDiv.classList.add('d-none');
+					}
+				});
+
+				row.querySelector('.remove-haste-btn').addEventListener('click', function () {
 					const idToRemove = this.getAttribute('data-row-id');
 					const el = document.getElementById(idToRemove);
 					if (el) el.remove();
@@ -308,14 +375,14 @@
 		if (!donorSearch) return; // Exit if unauthorized block is rendered
 
 		// Clear search action
-		clearSearch.addEventListener('click', function() {
+		clearSearch.addEventListener('click', function () {
 			donorSearch.value = '';
 			searchResults.classList.add('d-none');
 			searchResults.innerHTML = '';
 		});
 
 		// Live Donor Lookup
-		donorSearch.addEventListener('input', function() {
+		donorSearch.addEventListener('input', function () {
 			clearTimeout(searchTimeout);
 			const query = donorSearch.value.trim();
 
@@ -329,7 +396,7 @@
 				frappe.call({
 					method: 'veerpasli.www.donation_entry.search_donor',
 					args: { query: query },
-					callback: function(r) {
+					callback: function (r) {
 						searchResults.innerHTML = '';
 						if (r.message && r.message.length > 0) {
 							searchResults.classList.remove('d-none');
@@ -342,10 +409,10 @@
 										<small class="text-muted"><i class="fa fa-phone"></i> ${donor.mobile_number || 'N/A'}</small>
 									</div>
 									<div class="text-muted" style="font-size: 0.85rem;">
-										<i class="fa fa-map-marker-alt"></i> Village: ${donor.village_gujarati_name} ${donor.village_english ? '('+donor.village_english+')' : ''}
+										<i class="fa fa-map-marker-alt"></i> Village: ${donor.village_gujarati_name} ${donor.village_english ? '(' + donor.village_english + ')' : ''}
 									</div>
 								`;
-								item.addEventListener('click', function(e) {
+								item.addEventListener('click', function (e) {
 									e.preventDefault();
 									selectDonor(donor);
 								});
@@ -380,13 +447,83 @@
 			donorSearch.value = `${donor.gujarati_fullname} (${donor.mobile_number || 'N/A'})`;
 		}
 
-		// Reset Selected Donor if Gujarati name changes manually
-		nameGujInput.addEventListener('input', function() {
+		// Reset Selected Donor if Gujarati name changes manually & Autofill English translation
+		let gujTimeout = null;
+		nameGujInput.addEventListener('input', function () {
 			donorIdInput.value = '';
+			const val = nameGujInput.value.trim();
+			clearTimeout(gujTimeout);
+			if (!val) {
+				nameEngInput.value = '';
+				return;
+			}
+			gujTimeout = setTimeout(() => {
+				frappe.call({
+					method: 'veerpasli.www.donation_entry.get_translation',
+					args: { text: val },
+					callback: function (r) {
+						if (r.message && r.message.english) {
+							nameEngInput.value = r.message.english;
+						}
+					}
+				});
+			}, 600);
+		});
+
+		// Suggest Gujarati translation as dropdown when typing English name
+		let engTimeout = null;
+		const suggestionsContainer = document.getElementById('translation_suggestions');
+		nameEngInput.addEventListener('input', function () {
+			donorIdInput.value = '';
+			const val = nameEngInput.value.trim();
+			clearTimeout(engTimeout);
+
+			if (!val) {
+				suggestionsContainer.classList.add('d-none');
+				suggestionsContainer.innerHTML = '';
+				return;
+			}
+
+			engTimeout = setTimeout(() => {
+				frappe.call({
+					method: 'veerpasli.www.donation_entry.get_translation',
+					args: { text: val },
+					callback: function (r) {
+						if (r.message && r.message.options && r.message.options.length > 0) {
+							suggestionsContainer.innerHTML = r.message.options.map(option => `
+								<a href="#" class="list-group-item list-group-item-action py-2 select-gujarati-suggestion-btn" data-value="${option}">
+									<i class="fa fa-language text-muted mr-2"></i> Use Gujarati: <strong>${option}</strong>
+								</a>
+							`).join('');
+							suggestionsContainer.classList.remove('d-none');
+
+							// Add click handlers for all suggestions
+							suggestionsContainer.querySelectorAll('.select-gujarati-suggestion-btn').forEach(btn => {
+								btn.addEventListener('click', function (e) {
+									e.preventDefault();
+									nameGujInput.value = this.getAttribute('data-value');
+									suggestionsContainer.classList.add('d-none');
+									suggestionsContainer.innerHTML = '';
+								});
+							});
+						} else {
+							suggestionsContainer.classList.add('d-none');
+							suggestionsContainer.innerHTML = '';
+						}
+					}
+				});
+			}, 600);
+		});
+
+		// Close suggestion dropdown on outside click
+		document.addEventListener('click', function (e) {
+			if (!nameEngInput.contains(e.target) && !suggestionsContainer.contains(e.target)) {
+				suggestionsContainer.classList.add('d-none');
+			}
 		});
 
 		// Submit Form
-		donationForm.addEventListener('submit', function(e) {
+		donationForm.addEventListener('submit', function (e) {
 			e.preventDefault();
 
 			// Frontend Validation
@@ -412,7 +549,12 @@
 			hasteInputs.forEach(input => {
 				const val = input.value.trim();
 				if (val) {
-					hastes.push(val);
+					const personId = input.getAttribute('data-person-id');
+					if (personId && input.dataset.selectedName === val) {
+						hastes.push(personId);
+					} else {
+						hastes.push(val);
+					}
 				}
 			});
 
@@ -426,7 +568,7 @@
 					donation_date: dateInput.value,
 					hastes: hastes
 				},
-				callback: function(r) {
+				callback: function (r) {
 					submitBtn.disabled = false;
 					submitBtn.innerHTML = '<i class="fa fa-check-circle"></i> Save Donation';
 
@@ -446,14 +588,14 @@
 						if (hastesContainer) {
 							hastesContainer.innerHTML = '';
 						}
-						
+
 						// Scroll to message
 						formMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
 					} else {
 						showMsg('Failed to save donation. Please try again.', 'danger');
 					}
 				},
-				error: function(err) {
+				error: function (err) {
 					submitBtn.disabled = false;
 					submitBtn.innerHTML = '<i class="fa fa-check-circle"></i> Save Donation';
 					showMsg(err.message || 'An error occurred while saving the donation.', 'danger');
@@ -467,7 +609,7 @@
 		}
 
 		// Close search results dropdown on outside click
-		document.addEventListener('click', function(e) {
+		document.addEventListener('click', function (e) {
 			if (!donorSearch.contains(e.target) && !searchResults.contains(e.target)) {
 				searchResults.classList.add('d-none');
 			}

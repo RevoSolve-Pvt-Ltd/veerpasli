@@ -34,54 +34,44 @@ def get_context(context):
 		fields=["name", "english_name"],
 		order_by="name asc"
 	)
-	context.locations = frappe.get_all(
-		"Location",
-		fields=["name", "location_name_english"],
-		order_by="name asc"
+	# Load locations linked to this collector
+	collector_loc_links = frappe.get_all(
+		"Collector Location",
+		filters={"parent": collector.name, "parenttype": "Person"},
+		fields=["location"]
 	)
+	collector_loc_names = [d.location for d in collector_loc_links if d.location]
+
+	if collector_loc_names:
+		context.locations = frappe.get_all(
+			"Location",
+			filters=[["name", "in", collector_loc_names]],
+			fields=["name", "location_name_english"],
+			order_by="name asc"
+		)
+	else:
+		context.locations = []
 
 
 @frappe.whitelist()
 def search_donor(query):
 	"""
-	Search existing non-collector Person records by name or mobile number.
+	Search existing non-collector Person records by name (English or Gujarati) or mobile number.
 	"""
 	if not query:
 		return []
 
-	# Try exact/like search by mobile
 	donors = frappe.get_all(
 		"Person",
-		filters=[
+		filters={"is_collector": "false"},
+		or_filters=[
 			["mobile_number", "like", f"%{query}%"],
-			["is_collector", "=", "false"]
+			["gujarati_fullname", "like", f"%{query}%"],
+			["english_fullname", "like", f"%{query}%"]
 		],
-		fields=["name", "gujarati_fullname", "english_fullname", "mobile_number", "village_gujarati_name"]
+		fields=["name", "gujarati_fullname", "english_fullname", "mobile_number", "village_gujarati_name"],
+		limit=10
 	)
-
-	if not donors:
-		# Try Gujarati name search
-		donors = frappe.get_all(
-			"Person",
-			filters=[
-				["is_collector", "=", "false"],
-				["gujarati_fullname", "like", f"%{query}%"]
-			],
-			fields=["name", "gujarati_fullname", "english_fullname", "mobile_number", "village_gujarati_name"],
-			limit=10
-		)
-
-	if not donors:
-		# Try English name search
-		donors = frappe.get_all(
-			"Person",
-			filters=[
-				["is_collector", "=", "false"],
-				["english_fullname", "like", f"%{query}%"]
-			],
-			fields=["name", "gujarati_fullname", "english_fullname", "mobile_number", "village_gujarati_name"],
-			limit=10
-		)
 
 	# Fetch Village details for each donor
 	for d in donors:
@@ -199,10 +189,10 @@ def create_web_donation(donor_data, amount, village, location, donation_date=Non
 		"list_of_donors": []
 	})
 
-	# Clean and filter haste names
-	haste_names = [h.strip() for h in hastes if h and h.strip()]
+	# Clean and filter haste values
+	haste_vals = [h.strip() for h in hastes if h and h.strip()]
 
-	if not haste_names:
+	if not haste_vals:
 		donation.append("list_of_donors", {
 			"donor_name": donor_name,
 			"amount": amount
@@ -211,9 +201,15 @@ def create_web_donation(donor_data, amount, village, location, donation_date=Non
 		if not village_doc:
 			frappe.throw(_("Village is required to register haste names."))
 		
-		distributed_amounts = distribute_amount_equally(amount, len(haste_names))
-		for idx, haste_name in enumerate(haste_names):
-			haste_person = get_or_create_person(haste_name, village_doc, '', is_collector=False)
+		distributed_amounts = distribute_amount_equally(amount, len(haste_vals))
+		for idx, haste_val in enumerate(haste_vals):
+			if frappe.db.exists("Person", haste_val):
+				# Existing Person ID
+				haste_person = frappe.get_doc("Person", haste_val)
+			else:
+				# Create or retrieve by name fallback
+				haste_person = get_or_create_person(haste_val, village_doc, '', is_collector=False)
+				
 			donation.append("list_of_donors", {
 				"donor_name": haste_person.name,
 				"amount": distributed_amounts[idx]
@@ -226,4 +222,36 @@ def create_web_donation(donor_data, amount, village, location, donation_date=Non
 		"status": "success",
 		"donation_id": donation.name,
 		"donor_name": donation.takti_english or donation.takti
+	}
+
+@frappe.whitelist()
+def get_translation(text):
+	from veerpasli.veerpasli.doctype.pdf_page.pdf_page import get_translated_names
+	guj, eng = get_translated_names(text)
+	
+	options = []
+	import requests
+	try:
+		url = "https://inputtools.google.com/request"
+		params = {
+			"text": text,
+			"itc": "gu-t-i0-und",
+			"num": 5
+		}
+		response = requests.get(url, params=params, timeout=5)
+		if response.status_code == 200:
+			res = response.json()
+			if res and len(res) > 1 and len(res[1]) > 0:
+				options = res[1][0].get("suggested_words", [])
+	except Exception:
+		pass
+
+	# Ensure primary translation is at the top of options
+	if guj and guj not in options:
+		options.insert(0, guj)
+		
+	return {
+		"gujarati": guj,
+		"english": eng,
+		"options": options
 	}
