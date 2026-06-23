@@ -1,0 +1,278 @@
+{% extends "templates/web.html" %}
+
+{% block page_content %}
+<div class="dashboard-container">
+	{% if unauthorized %}
+		<div class="alert alert-danger text-center shadow-sm">
+			<h4 class="alert-heading"><i class="fa fa-lock"></i> Access Denied</h4>
+			<p>You must be registered as a Collector to access this dashboard.</p>
+			<hr>
+			<p class="mb-0"><a href="/login" class="btn btn-primary btn-sm">Log in as Collector</a></p>
+		</div>
+	{% else %}
+		<!-- Dashboard Header -->
+		<div class="row align-items-center mb-4">
+			<div class="col-md-8">
+				<h6 class="text-uppercase text-muted mb-1 tracking-wide">Collector Dashboard</h6>
+				<h2 class="collector-title mb-0">
+					{{ collector.gujarati_fullname }}
+					<span class="text-muted font-weight-normal" style="font-size: 1.2rem;">({{ collector.english_fullname }})</span>
+				</h2>
+			</div>
+			<div class="col-md-4 text-md-right mt-3 mt-md-0">
+				<a href="/donation_entry" class="btn btn-primary btn-lg shadow-sm">
+					<i class="fa fa-plus-circle mr-1"></i> Create New Donation
+				</a>
+			</div>
+		</div>
+
+		<!-- Summary Statistics Grid -->
+		<div class="row mb-4">
+			<div class="col-sm-6 mb-3 mb-sm-0">
+				<div class="card stat-card border-0 shadow-sm">
+					<div class="card-body d-flex align-items-center">
+						<div class="stat-icon bg-primary-light text-primary mr-3">
+							<i class="fa fa-rupee-sign fa-lg"></i>
+						</div>
+						<div>
+							<h6 class="text-muted mb-1 text-uppercase tracking-wider">Total Collected</h6>
+							<h3 class="stat-value mb-0" id="total_amount_value">
+								{% set total_amt = namespace(value=0) %}
+								{% for d in donations %}
+									{% set total_amt.value = total_amt.value + (d.amount_english or 0) %}
+								{% endfor %}
+								₹{{ total_amt.value }}
+							</h3>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="col-sm-6">
+				<div class="card stat-card border-0 shadow-sm">
+					<div class="card-body d-flex align-items-center">
+						<div class="stat-icon bg-success-light text-success mr-3">
+							<i class="fa fa-users fa-lg"></i>
+						</div>
+						<div>
+							<h6 class="text-muted mb-1 text-uppercase tracking-wider">Total Donors</h6>
+							<h3 class="stat-value mb-0">{{ donations|length }}</h3>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Donations List Section -->
+		<div class="card list-card border-0 shadow-sm">
+			<div class="card-header border-0 bg-white py-3 d-flex align-items-center justify-content-between">
+				<h4 class="mb-0 text-primary font-weight-bold">
+					<i class="fa fa-list"></i> Recent Donations
+				</h4>
+				<div class="search-box">
+					<input type="text" id="list_search" class="form-control form-control-sm" placeholder="Filter by donor name..." autocomplete="off">
+				</div>
+			</div>
+			<div class="card-body p-0">
+				{% if not donations %}
+					<div class="text-center py-5 px-3">
+						<div class="empty-state-icon text-muted mb-3">
+							<i class="fa fa-hand-holding-heart fa-3x"></i>
+						</div>
+						<h5>No donations recorded yet</h5>
+						<p class="text-muted small">Tap the button above to log your first donation collection!</p>
+					</div>
+				{% else %}
+					<div class="table-responsive">
+						<table class="table table-hover mb-0 align-middle" id="donations_table">
+							<thead class="bg-light">
+								<tr>
+									<th>Donor (દાતા)</th>
+									<th class="text-right">Amount (રકમ)</th>
+									<th>Location & Village</th>
+									<th>Date</th>
+									<th class="text-center">Action</th>
+								</tr>
+							</thead>
+							<tbody>
+								{% for d in donations %}
+									<tr class="donation-row">
+										<td>
+											<div class="font-weight-bold text-dark">{{ d.takti }}</div>
+											{% if d.takti_english %}
+												<small class="text-muted">{{ d.takti_english }}</small>
+											{% endif %}
+										</td>
+										<td class="text-right font-weight-bold text-success">
+											₹{{ d.amount_english }}
+										</td>
+										<td>
+											<div class="small font-weight-bold">{{ d.location }}</div>
+											{% if d.village %}
+												<span class="badge badge-light py-1 px-2 mt-1">{{ d.village }}</span>
+											{% endif %}
+										</td>
+										<td>
+											<small class="text-muted">{{ d.donation_date }}</small>
+										</td>
+										<td class="text-center">
+											<button onclick="downloadReceipt('{{ d.name }}')" class="btn btn-outline-primary btn-sm rounded-pill download-receipt-btn">
+												<i class="fa fa-download mr-1"></i> Receipt
+											</button>
+										</td>
+									</tr>
+								{% endfor %}
+							</tbody>
+						</table>
+					</div>
+				{% endif %}
+			</div>
+		</div>
+	{% endif %}
+</div>
+
+<style>
+	:root {
+		--primary-color: #4f46e5;
+		--primary-hover: #4338ca;
+		--bg-primary-light: rgba(79, 70, 229, 0.1);
+		--bg-success-light: rgba(40, 167, 69, 0.1);
+	}
+
+	.dashboard-container {
+		max-width: 1000px;
+		margin: 2rem auto;
+		padding: 0 1rem;
+	}
+
+	.collector-title {
+		font-weight: 800;
+		color: #1f2937;
+	}
+
+	.stat-card {
+		border-radius: 12px;
+		background: #ffffff;
+		transition: transform 0.2s ease, box-shadow 0.2s ease;
+	}
+
+	.stat-card:hover {
+		transform: translateY(-2px);
+		box-shadow: 0 8px 24px rgba(0,0,0,0.06) !important;
+	}
+
+	.stat-icon {
+		width: 48px;
+		height: 48px;
+		border-radius: 10px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.bg-primary-light {
+		background-color: var(--bg-primary-light);
+	}
+
+	.bg-success-light {
+		background-color: var(--bg-success-light);
+	}
+
+	.stat-value {
+		font-weight: 700;
+		color: #111827;
+	}
+
+	.list-card {
+		border-radius: 12px;
+		background: #ffffff;
+	}
+
+	.tracking-wide {
+		letter-spacing: 0.05em;
+	}
+
+	.tracking-wider {
+		letter-spacing: 0.07em;
+		font-size: 0.75rem;
+		font-weight: 600;
+	}
+
+	.search-box input {
+		border-radius: 20px;
+		width: 200px;
+		border: 1px solid #d1d5db;
+		transition: all 0.2s ease;
+	}
+
+	.search-box input:focus {
+		width: 260px;
+		border-color: var(--primary-color);
+		box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+	}
+
+	.table th {
+		font-weight: 600;
+		text-transform: uppercase;
+		font-size: 0.75rem;
+		letter-spacing: 0.05em;
+		color: #6b7280;
+		border-bottom: 2px solid #f3f4f6;
+		padding: 12px 16px;
+	}
+
+	.table td {
+		padding: 14px 16px;
+		border-bottom: 1px solid #f3f4f6;
+	}
+
+	.download-receipt-btn {
+		transition: all 0.2s ease;
+		font-weight: 600;
+		font-size: 0.85rem;
+	}
+
+	.download-receipt-btn:hover {
+		transform: scale(1.05);
+	}
+
+	@media (max-width: 576px) {
+		.search-box input {
+			width: 140px;
+		}
+		.search-box input:focus {
+			width: 170px;
+		}
+	}
+</style>
+
+<script>
+	function downloadReceipt(donationId) {
+		// As requested, this functionality is currently placeholder/non-functional
+		frappe.msgprint({
+			title: 'Receipt Download',
+			indicator: 'blue',
+			message: 'Receipt generation for <strong>' + donationId + '</strong> is coming soon. Please test the donation creation flow first!'
+		});
+	}
+
+	document.addEventListener("DOMContentLoaded", function() {
+		// Filter search in table
+		const listSearch = document.getElementById('list_search');
+		if (listSearch) {
+			listSearch.addEventListener('input', function() {
+				const filter = listSearch.value.toLowerCase().trim();
+				const rows = document.querySelectorAll('.donation-row');
+				
+				rows.forEach(row => {
+					const donorText = row.querySelector('td:first-child').innerText.toLowerCase();
+					if (donorText.includes(filter)) {
+						row.style.display = '';
+					} else {
+						row.style.display = 'none';
+					}
+				});
+			});
+		}
+	});
+</script>
+{% endblock %}

@@ -64,6 +64,8 @@ app_license = "mit"
 # 	"Role": "home_page"
 # }
 
+get_website_user_home_page = "veerpasli.api.get_website_user_home_page"
+
 # Generators
 # ----------
 
