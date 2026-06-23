@@ -37,11 +37,20 @@ def get_context(context):
 		order_by="creation desc"
 	)
 
-	# Fetch English names for village/location
+	# Fetch English names for village/location and donor names
 	for donation in donations:
 		if donation.village:
 			donation.village_english = frappe.db.get_value("Village", donation.village, "english_name")
 		if donation.location:
 			donation.location_english = frappe.db.get_value("Location", donation.location, "location_name_english")
+
+		# Fetch donor's actual Gujarati and English names
+		donor_data = frappe.db.get_value("Person", donation.takti, ["gujarati_fullname", "english_fullname"], as_dict=True)
+		if donor_data:
+			donation.donor_gujarati = donor_data.gujarati_fullname
+			donation.donor_english = donor_data.english_fullname
+		else:
+			donation.donor_gujarati = donation.takti
+			donation.donor_english = donation.takti_english
 
 	context.donations = donations

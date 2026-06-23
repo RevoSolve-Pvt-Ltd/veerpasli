@@ -192,7 +192,7 @@ def create_web_donation(donor_data, amount, village, location, donation_date=Non
 		"takti": donor_name,
 		"amount_gujarati": amount_guj,
 		"amount_english": amount,
-		"donation_date": donation_date or frappe.utils.today(),
+		"donation_date": donation_date or "2024-08-01",
 		"village": village_link,
 		"location": location,
 		"collector": collector,

@@ -158,6 +158,10 @@
 </div>
 
 <style>
+	footer.web-footer, .web-footer {
+		display: none !important;
+	}
+
 	:root {
 		--primary-color: #4f46e5;
 		--primary-hover: #4338ca;
@@ -249,8 +253,8 @@
 
 <script>
 	document.addEventListener("DOMContentLoaded", function() {
-		// Initialize donation date to today
-		const today = new Date().toISOString().split('T')[0];
+		// Initialize donation date to 2024-08-01 (1/8/2024)
+		const today = '2024-08-01';
 		const dateInput = document.getElementById('donation_date');
 		if (dateInput) {
 			dateInput.value = today;
