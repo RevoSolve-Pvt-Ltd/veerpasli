@@ -18,147 +18,88 @@
 		</div>
 	{% else %}
 		<!-- Actions Bar (Hidden on Print) -->
-		<div class="d-flex justify-content-between align-items-center mb-4 no-print">
+		<div class="d-flex justify-content-between align-items-center mb-4 no-print" style="max-width: 950px; margin: 0 auto;">
 			<a href="/donations" class="btn btn-outline-secondary">
 				<i class="fa fa-arrow-left mr-1"></i> Dashboard
 			</a>
 			<div>
-				<button id="download_pdf_btn" class="btn btn-primary btn-lg shadow-sm mr-2">
+				<button id="download_pdf_btn" class="btn btn-primary shadow-sm mr-2">
 					<i class="fa fa-download mr-1"></i> Download PDF
 				</button>
-				<button onclick="window.print()" class="btn btn-outline-primary btn-lg shadow-sm">
+				<button onclick="window.print()" class="btn btn-outline-primary shadow-sm">
 					<i class="fa fa-print mr-1"></i> Print
 				</button>
 			</div>
 		</div>
 
-		<!-- Premium Receipt Card -->
-		<div class="card receipt-card border-0 shadow">
+		<!-- Simple Traditional Landscape Receipt Card -->
+		<div class="card receipt-card">
 			<div class="receipt-border">
 				<div class="receipt-inner">
-					
-					<!-- Header Section -->
-					<div class="receipt-header text-center mb-4">
-						<div class="org-logo mb-2">
-							<i class="fa fa-hand-holding-heart fa-3x text-primary"></i>
-						</div>
-						<h1 class="org-title mb-1">વીરપસલી (VEERPASLI)</h1>
-						<div class="receipt-title-badge px-3 py-1">
-							<span class="font-weight-bold text-uppercase tracking-wider">Donation Receipt / દાન રસીદ</span>
+					<!-- Center-aligned Header -->
+					<div class="text-center mb-5">
+						<h2 class="org-name-title font-weight-bold mb-1">Veerpasli Donation</h2>
+						<div class="receipt-no-val font-weight-bold">Receipt No: {{ donation.name }}</div>
+					</div>
+
+					<!-- Field Rows with Underlines -->
+					<div class="receipt-row">
+						<div class="receipt-field" style="width: 100%;">
+							<span class="field-label">Date / તારીખ:</span>
+							<span class="field-value">{{ donation.donation_date }}</span>
 						</div>
 					</div>
 
-					<!-- Details Grid -->
-					<div class="row mb-4">
-						<div class="col-6 mb-2">
-							<span class="details-label text-muted d-block">Receipt No / રસીદ નં:</span>
-							<strong class="details-value">{{ donation.name }}</strong>
+					<div class="receipt-row">
+						<div class="receipt-field" style="flex: 2;">
+							<span class="field-label">Name / દાતાનું નામ:</span>
+							<span class="field-value font-weight-bold">{{ takti_gujarati }} {% if takti_english %}({{ takti_english }}){% endif %}</span>
 						</div>
-						<div class="col-6 mb-2 text-right">
-							<span class="details-label text-muted d-block">Date / તારીખ:</span>
-							<strong class="details-value">{{ donation.donation_date }}</strong>
-						</div>
-						<div class="col-6 mb-2">
-							<span class="details-label text-muted d-block">Village / ગામ:</span>
-							<strong class="details-value">
-								{{ donation.village }}
-								{% if village_english %}
-									<span class="details-sub">({{ village_english }})</span>
-								{% endif %}
-							</strong>
-						</div>
-						<div class="col-6 mb-2 text-right">
-							<span class="details-label text-muted d-block">Location / સ્થળ:</span>
-							<strong class="details-value">
-								{{ donation.location }}
-								{% if location_english %}
-									<span class="details-sub">({{ location_english }})</span>
-								{% endif %}
-							</strong>
+						<div class="receipt-field" style="flex: 1; margin-left: 25px;">
+							<span class="field-label">Phone / ફોન:</span>
+							<span class="field-value">{{ takti_mobile or 'N/A' }}</span>
 						</div>
 					</div>
 
-					<hr class="receipt-divider">
-
-					<!-- Donor Information -->
-					<div class="mb-4">
-						<span class="details-label text-muted d-block">Received From / દાતાનું નામ:</span>
-						<h3 class="donor-title text-primary font-weight-bold mb-1">
-							{{ takti_gujarati }}
-						</h3>
-						{% if takti_english %}
-							<h5 class="text-muted font-weight-normal mb-0">({{ takti_english }})</h5>
-						{% endif %}
+					<div class="receipt-row">
+						<div class="receipt-field" style="flex: 1;">
+							<span class="field-label">Village / ગામ:</span>
+							<span class="field-value">{{ donation.village }} {% if village_english %}({{ village_english }}){% endif %}</span>
+						</div>
+						<div class="receipt-field" style="flex: 1; margin-left: 25px;">
+							<span class="field-label">Location / સ્થળ:</span>
+							<span class="field-value">{{ donation.location }} {% if location_english %}({{ location_english }}){% endif %}</span>
+						</div>
 					</div>
 
-					<!-- Hastes (Breakdown Table if exists and has more than 1 donor or different from main) -->
+					<div class="receipt-row">
+						<div class="receipt-field" style="flex: 1;">
+							<span class="field-label">Cash Amount / રકમ:</span>
+							<span class="field-value font-weight-bold">₹{{ donation.amount_english }} /-</span>
+						</div>
+						<div class="receipt-field" style="flex: 1; margin-left: 25px;">
+							<span class="field-label">Collector / સંગ્રહકર્તા:</span>
+							<span class="field-value">{{ collector_name_guj }} {% if collector_name_eng %}({{ collector_name_eng }}){% endif %}</span>
+						</div>
+					</div>
+
+					<!-- Bottom Row for Hastes Breakdown -->
 					{% if donors_list and (donors_list|length > 1 or donors_list[0].gujarati_fullname != takti_gujarati) %}
-						<div class="mb-4">
-							<h6 class="font-weight-bold text-muted text-uppercase tracking-wider mb-2">
-								<i class="fa fa-users"></i> Haste Breakdown / હસ્તે વિગત:
-							</h6>
-							<div class="table-responsive">
-								<table class="table table-bordered table-sm mb-0">
-									<thead class="bg-light">
-										<tr>
-											<th>Haste Name (હસ્તે)</th>
-											<th class="text-right" style="width: 150px;">Amount (રકમ)</th>
-										</tr>
-									</thead>
-									<tbody>
-										{% for d in donors_list %}
-											<tr>
-												<td>
-													<strong>{{ d.gujarati_fullname }}</strong>
-													{% if d.english_fullname %}
-														<span class="text-muted small">({{ d.english_fullname }})</span>
-													{% endif %}
-												</td>
-												<td class="text-right font-weight-bold">
-													₹{{ d.amount }}
-												</td>
-											</tr>
-										{% endfor %}
-									</tbody>
-								</table>
+						<div class="d-flex justify-content-end mt-4">
+							<div class="haste-box-simple">
+								<div class="haste-title font-weight-bold mb-1">
+									<i class="fa fa-users"></i> Haste Breakdown / હસ્તે વિગત:
+								</div>
+								<div class="haste-list">
+									{% for d in donors_list %}
+										<div class="haste-item py-1">
+											{{ d.gujarati_fullname }} {% if d.english_fullname %}({{ d.english_fullname }}){% endif %}: <strong>₹{{ d.amount }}</strong>
+										</div>
+									{% endfor %}
+								</div>
 							</div>
 						</div>
 					{% endif %}
-
-					<hr class="receipt-divider">
-
-					<!-- Amount Section -->
-					<div class="amount-box bg-light p-3 rounded mb-4 d-flex align-items-center justify-content-between">
-						<div>
-							<span class="details-label text-muted d-block">Total Amount / કુલ રકમ:</span>
-							<h4 class="mb-0 font-weight-bold text-success">
-								₹{{ donation.amount_english }} /-
-							</h4>
-						</div>
-						<div class="text-right">
-							<span class="details-label text-muted d-block">Amount in words (Gujarati):</span>
-							<h5 class="mb-0 text-dark font-weight-bold">
-								રૂપિયા {{ donation.amount_gujarati }} પૂરા
-							</h5>
-						</div>
-					</div>
-
-					<!-- Footer Signatures -->
-					<div class="row mt-5 pt-3 align-items-end">
-						<div class="col-6">
-							<span class="details-label text-muted d-block">Collected By / સંગ્રહકર્તા:</span>
-							<strong class="d-block">{{ collector_name_guj }}</strong>
-							{% if collector_name_eng %}
-								<small class="text-muted d-block">({{ collector_name_eng }})</small>
-							{% endif %}
-						</div>
-						<div class="col-6 text-right">
-							<div class="signature-space d-inline-block text-center" style="width: 180px;">
-								<hr class="mb-1" style="border-top: 1px dashed #bbb;">
-								<span class="details-label text-muted small d-block">Signature / Stamp (સહી)</span>
-							</div>
-						</div>
-					</div>
 
 				</div>
 			</div>
@@ -171,86 +112,103 @@
 		display: none !important;
 	}
 
-	:root {
-		--primary-color: #4f46e5;
-		--success-color: #28a745;
-	}
-
 	.receipt-container {
-		max-width: 700px;
-		margin: 0 auto;
+		max-width: 950px;
+		margin: 2rem auto;
+		padding: 0 1.5rem;
 	}
 
 	.receipt-card {
 		background: #ffffff;
-		border-radius: 16px;
-		padding: 24px;
+		border: 2px solid #000000;
+		border-radius: 8px;
+		padding: 0;
 	}
 
 	.receipt-border {
-		border: 4px double #e5e7eb;
-		border-radius: 8px;
-		padding: 24px;
+		padding: 40px;
 	}
 
 	.receipt-inner {
 		position: relative;
 	}
 
-	.org-title {
-		font-weight: 800;
-		color: #1f2937;
-		font-size: 1.8rem;
+	.org-name-title {
+		color: #000000;
+		font-size: 2.2rem;
 		letter-spacing: 0.05em;
 	}
 
-	.receipt-title-badge {
-		background: #f3f4f6;
-		border-radius: 20px;
-		display: inline-block;
+	.receipt-no-val {
+		font-size: 1.2rem;
+		color: #333333;
+		margin-top: 5px;
 	}
 
-	.receipt-title-badge span {
-		font-size: 0.85rem;
-		color: #4b5563;
+	/* Field underline layout */
+	.receipt-row {
+		display: flex;
+		align-items: flex-end;
+		margin-bottom: 30px;
 	}
 
-	.details-label {
-		font-size: 0.8rem;
-		letter-spacing: 0.05em;
-		text-transform: uppercase;
+	.receipt-field {
+		display: flex;
+		align-items: flex-end;
 	}
 
-	.details-value {
-		font-size: 1.1rem;
-		color: #1f2937;
+	.field-label {
+		font-weight: 700;
+		color: #000000;
+		white-space: nowrap;
+		margin-right: 10px;
+		font-size: 1rem;
+		padding-bottom: 2px;
 	}
 
-	.details-sub {
+	.field-value {
+		border-bottom: 1.5px solid #000000;
+		flex-grow: 1;
+		padding-left: 12px;
+		padding-bottom: 2px;
+		font-size: 1.05rem;
+		color: #000000;
+		min-height: 28px;
+	}
+
+	/* Simple Haste Breakdown Box */
+	.haste-box-simple {
 		font-size: 0.9rem;
-		font-weight: normal;
-		color: #6b7280;
+		border: 1.5px solid #000000;
+		border-radius: 4px;
+		padding: 12px 18px;
+		max-width: 380px;
+		background: #ffffff;
+		text-align: left;
 	}
 
-	.donor-title {
-		font-size: 1.5rem;
+	.haste-title {
+		font-size: 0.85rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		border-bottom: 1px solid #000000;
+		padding-bottom: 4px;
 	}
 
-	.receipt-divider {
-		border-top: 1px dashed #d1d5db;
-		margin: 1.5rem 0;
+	.haste-item {
+		border-bottom: 1px dashed #dddddd;
 	}
-
-	.amount-box {
-		border-left: 5px solid var(--success-color);
-	}
-
-	.tracking-wider {
-		letter-spacing: 0.07em;
+	.haste-item:last-child {
+		border-bottom: none;
 	}
 
 	/* Print styles */
 	@media print {
+		@page {
+			size: landscape;
+			margin: 0.4in;
+		}
+
 		body {
 			background: white !important;
 			color: black !important;
@@ -267,21 +225,33 @@
 		}
 
 		.receipt-card {
+			border: 2px solid #000000 !important;
+			border-radius: 8px !important;
 			box-shadow: none !important;
-			border: none !important;
 			padding: 0 !important;
 		}
 
 		.receipt-border {
-			border: 4px double #000 !important;
-			border-radius: 0 !important;
-			padding: 20px !important;
+			padding: 30px !important;
 		}
 
-		.amount-box {
-			border: 1px solid #ccc !important;
-			border-left: 5px solid #28a745 !important;
-			background-color: #f9f9f9 !important;
+		/* Ensure grid layout stays side-by-side on print */
+		.row {
+			display: flex !important;
+			flex-wrap: nowrap !important;
+		}
+
+		.receipt-row {
+			display: flex !important;
+			margin-bottom: 25px !important;
+		}
+
+		.receipt-field {
+			display: flex !important;
+		}
+
+		.field-value {
+			border-bottom: 1.5px solid #000000 !important;
 			-webkit-print-color-adjust: exact;
 			print-color-adjust: exact;
 		}
@@ -304,7 +274,7 @@
 					filename:     'Receipt-' + '{{ donation.name }}' + '.pdf',
 					image:        { type: 'jpeg', quality: 0.98 },
 					html2canvas:  { scale: 2, useCORS: true },
-					jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+					jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' }
 				};
 
 				setTimeout(function() {

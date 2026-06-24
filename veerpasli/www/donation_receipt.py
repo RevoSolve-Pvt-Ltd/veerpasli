@@ -39,9 +39,10 @@ def get_context(context):
 		context.location_english = frappe.db.get_value("Location", donation_doc.location, "location_name_english")
 
 	# Fetch takti Person details
-	takti_data = frappe.db.get_value("Person", donation_doc.takti, ["gujarati_fullname", "english_fullname"], as_dict=True)
+	takti_data = frappe.db.get_value("Person", donation_doc.takti, ["gujarati_fullname", "english_fullname", "mobile_number"], as_dict=True)
 	context.takti_gujarati = takti_data.gujarati_fullname if takti_data else donation_doc.takti
 	context.takti_english = takti_data.english_fullname if takti_data else donation_doc.takti_english
+	context.takti_mobile = takti_data.mobile_number if takti_data else ""
 
 	# Fetch collector Person details
 	collector_data = frappe.db.get_value("Person", donation_doc.collector, ["gujarati_fullname", "english_fullname"], as_dict=True)
