@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen bg-gray-50">
-    <!-- Loading State -->
-    <div v-if="loading" class="flex items-center justify-center min-h-screen">
+    <!-- Initial Loading State -->
+    <div v-if="initialLoading" class="flex items-center justify-center min-h-screen">
       <div class="text-center">
         <LoadingIndicator class="w-8 h-8 text-blue-600 mx-auto mb-3" />
         <p class="text-gray-500 text-sm">Loading dashboard…</p>
@@ -14,7 +14,7 @@
         <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <FeatherIcon name="alert-triangle" class="w-6 h-6 text-red-500" />
         </div>
-        <h3 class="font-semibold text-gray-800 mb-2">Access Denied</h3>
+        <h3 class="font-semibold text-gray-800 mb-2">Error</h3>
         <p class="text-gray-500 text-sm mb-4">{{ error }}</p>
         <Button appearance="primary" @click="goToLogin()">
           Log in as Collector
@@ -75,7 +75,19 @@
       </div>
 
       <!-- Donations List Card -->
-      <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden relative">
+        
+        <!-- Table Loading Overlay -->
+        <div
+          v-if="tableLoading"
+          class="absolute inset-0 bg-white/70 backdrop-blur-[2px] flex items-center justify-center z-10"
+        >
+          <div class="text-center">
+            <LoadingIndicator class="w-8 h-8 text-blue-600 mx-auto mb-2" />
+            <p class="text-gray-500 text-sm font-medium">Searching donations…</p>
+          </div>
+        </div>
+
         <!-- Card Header -->
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4 border-b border-gray-100">
           <h2 class="font-semibold text-gray-800 flex items-center gap-2">
@@ -83,7 +95,8 @@
             Recent Donations
           </h2>
           <Input
-            v-model="searchQuery"
+            :value="searchQuery"
+            @input="(v) => { searchQuery = v }"
             placeholder="Search by donor name…"
             icon-left="search"
             class="max-w-xs"
@@ -196,7 +209,8 @@ export default {
 
   data() {
     return {
-      loading: true,
+      initialLoading: true,
+      tableLoading: false,
       error: null,
       collector: {},
       donations: [],
@@ -223,24 +237,28 @@ export default {
 
   watch: {
     currentPage() {
-      this.fetchDonations()
+      this.fetchDonations(false)
     },
     searchQuery() {
       this.currentPage = 1
       clearTimeout(this._searchTimer)
       this._searchTimer = setTimeout(() => {
-        this.fetchDonations()
+        this.fetchDonations(false)
       }, 300)
     },
   },
 
   created() {
-    this.fetchDonations()
+    this.fetchDonations(true)
   },
 
   methods: {
-    async fetchDonations() {
-      this.loading = true
+    async fetchDonations(isInitial = false) {
+      if (isInitial) {
+        this.initialLoading = true
+      } else {
+        this.tableLoading = true
+      }
       try {
         const data = await getDonationsDashboard({
           page: this.currentPage,
@@ -257,14 +275,15 @@ export default {
           window.location.href = getLoginUrl('/donation')
           return
         }
-        let msg = err.message || 'You must be registered as a Collector to access this dashboard.'
+        let msg = err.message || 'Failed to fetch donations. Please check your connection.'
         if (msg.includes('/api/method/')) {
           msg = msg.replace(/^\/api\/method\/[a-zA-Z0-9_\.]+\s+/, '')
         }
         msg = msg.replace(/<\/?[^>]+(>|$)/g, "")
         this.error = msg
       } finally {
-        this.loading = false
+        this.initialLoading = false
+        this.tableLoading = false
       }
     },
     goToLogin() {
