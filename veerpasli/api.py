@@ -224,7 +224,7 @@ def get_donations(page=None, page_size=None, location=None, start_date=None, end
 		total_donors = len(taktis.union(child_donors))
 
 	if or_filters:
-		filtered_total = frappe.db.count("Donation", filters=filters, or_filters=or_filters)
+		filtered_total = len(frappe.get_all("Donation", filters=filters, or_filters=or_filters, pluck="name"))
 	else:
 		filtered_total = overall_total
 
