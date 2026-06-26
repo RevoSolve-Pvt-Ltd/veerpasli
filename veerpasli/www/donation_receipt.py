@@ -60,3 +60,6 @@ def get_context(context):
 			"amount": d.amount
 		})
 	context.donors_list = donors_list
+
+	from frappe.utils import getdate
+	context.donation_year = getdate(donation_doc.donation_date).year if donation_doc.donation_date else getdate().year

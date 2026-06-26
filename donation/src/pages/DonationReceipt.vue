@@ -21,10 +21,10 @@
     </div>
 
     <!-- Receipt -->
-    <div v-else class="max-w-4xl mx-auto px-4 py-8">
+    <div v-else class="w-full px-4 py-8 flex flex-col items-center">
 
       <!-- Actions Bar (hidden on print) -->
-      <div class="flex items-center justify-between mb-6 no-print">
+      <div class="w-full flex items-center justify-between mb-6 no-print max-w-4xl">
         <Button icon-left="arrow-left" @click="$router.push('/')">
           Dashboard
         </Button>
@@ -44,13 +44,13 @@
       </div>
 
       <!-- Receipt Card -->
-      <div id="receipt-card" class="bg-white border-2 border-black rounded-lg">
+      <div id="receipt-card" class="bg-white border-2 border-black rounded-lg receipt-card">
         <div class="receipt-inner p-10">
 
           <!-- Header -->
           <div class="text-center mb-10">
             <h1 class="text-3xl font-extrabold text-black tracking-wide mb-1">
-              Veerpasli Donation
+              Veerpasli Donation {{ donationYear }}
             </h1>
             <p class="text-base font-bold text-gray-700">
               Receipt No: {{ data.donation.name }}
@@ -71,7 +71,7 @@
               <span class="field-label">Name / દાતાનું નામ:</span>
               <span class="field-value font-bold">
                 {{ data.takti_gujarati }}
-                <span v-if="data.takti_english" class="font-normal text-gray-600">
+                <span v-if="data.takti_english" class="translation-val">
                   ({{ data.takti_english }})
                 </span>
               </span>
@@ -88,7 +88,7 @@
               <span class="field-label">Village / ગામ:</span>
               <span class="field-value">
                 {{ data.donation.village }}
-                <span v-if="data.village_english" class="text-gray-500">
+                <span v-if="data.village_english" class="translation-val">
                   ({{ data.village_english }})
                 </span>
               </span>
@@ -97,7 +97,7 @@
               <span class="field-label">Location / સ્થળ:</span>
               <span class="field-value">
                 {{ data.donation.location }}
-                <span v-if="data.location_english" class="text-gray-500">
+                <span v-if="data.location_english" class="translation-val">
                   ({{ data.location_english }})
                 </span>
               </span>
@@ -116,36 +116,22 @@
               <span class="field-label">Collector / સંગ્રહકર્તા:</span>
               <span class="field-value">
                 {{ data.collector_name_guj }}
-                <span v-if="data.collector_name_eng" class="text-gray-500">
+                <span v-if="data.collector_name_eng" class="translation-val">
                   ({{ data.collector_name_eng }})
                 </span>
               </span>
             </div>
           </div>
 
-          <!-- Haste Breakdown (if applicable) -->
-          <div
-            v-if="showHasteBreakdown"
-            class="flex justify-end mt-6"
-          >
-            <div class="border-2 border-black rounded p-4 max-w-sm w-full">
-              <p class="text-xs font-bold uppercase tracking-wider border-b border-black pb-1 mb-3 flex items-center gap-1">
-                <FeatherIcon name="users" class="w-3.5 h-3.5" />
-                Haste Breakdown / હસ્તે વિગત:
-              </p>
-              <div
-                v-for="(d, i) in data.donors_list"
-                :key="i"
-                class="flex justify-between text-sm py-1 border-b border-dashed border-gray-200 last:border-0"
-              >
-                <span>
-                  {{ d.gujarati_fullname }}
-                  <span v-if="d.english_fullname" class="text-gray-500">({{ d.english_fullname }})</span>
-                </span>
-                <span class="font-bold">₹{{ d.amount }}</span>
-              </div>
+          <!-- Haste / હસ્તે Row -->
+          <div class="receipt-row mb-8">
+            <div class="receipt-field w-full">
+              <span class="field-label">Haste / હસ્તે:</span>
+              <span class="field-value font-bold">{{ hasteNamesList }}</span>
             </div>
           </div>
+
+
 
         </div>
       </div>
@@ -172,14 +158,20 @@ export default {
   },
 
   computed: {
-    showHasteBreakdown() {
-      if (!this.data || !this.data.donors_list || this.data.donors_list.length === 0) return false
-      if (
-        this.data.donors_list.length === 1 &&
-        this.data.donors_list[0].gujarati_fullname === this.data.takti_gujarati
-      )
-        return false
-      return true
+    donationYear() {
+      if (this.data && this.data.donation && this.data.donation.donation_date) {
+        return this.data.donation.donation_date.split('-')[0]
+      }
+      return new Date().getFullYear()
+    },
+    hasteNamesList() {
+      if (!this.data || !this.data.donors_list || this.data.donors_list.length === 0) return 'N/A'
+      return this.data.donors_list.map(d => {
+        const namePart = d.english_fullname 
+          ? `${d.gujarati_fullname} (${d.english_fullname})` 
+          : d.gujarati_fullname
+        return `${namePart} - ₹${d.amount}`
+      }).join(', ')
     },
   },
 
@@ -215,10 +207,11 @@ export default {
 
     async downloadPdf() {
       this.downloading = true
+      const element = document.getElementById('receipt-card')
       try {
         // Dynamically import html2pdf
         const html2pdf = (await import('html2pdf.js')).default
-        const element = document.getElementById('receipt-card')
+        if (element) element.classList.add('force-landscape')
         const opt = {
           margin: [0.4, 0.4, 0.4, 0.4],
           filename: `Receipt-${this.data.donation.name}.pdf`,
@@ -230,6 +223,7 @@ export default {
       } catch (err) {
         console.error('PDF generation failed', err)
       } finally {
+        if (element) element.classList.remove('force-landscape')
         this.downloading = false
       }
     },
@@ -238,6 +232,12 @@ export default {
 </script>
 
 <style scoped>
+.receipt-card {
+  width: 90%;
+  max-width: 950px;
+  margin: 0 auto;
+}
+
 .receipt-row {
   display: flex;
   align-items: flex-end;
@@ -258,7 +258,7 @@ export default {
   color: #000;
   white-space: nowrap;
   margin-right: 10px;
-  font-size: 1rem;
+  font-size: 0.9rem;
   padding-bottom: 2px;
 }
 
@@ -267,9 +267,51 @@ export default {
   flex-grow: 1;
   padding-left: 12px;
   padding-bottom: 2px;
-  font-size: 1.05rem;
+  font-size: 0.95rem;
   color: #000;
   min-height: 28px;
+  word-break: break-word;
+}
+
+.translation-val {
+  font-size: 0.8rem;
+  font-weight: normal;
+  color: #6b7280;
+  margin-left: 4px;
+}
+
+/* Responsiveness for mobile screen view */
+@media (max-width: 640px) {
+  .receipt-card {
+    width: 95%;
+  }
+  .receipt-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  .receipt-field {
+    margin-left: 0 !important;
+  }
+  .field-label {
+    font-size: 0.85rem;
+  }
+  .field-value {
+    font-size: 0.9rem;
+  }
+  .translation-val {
+    font-size: 0.75rem;
+  }
+}
+
+/* Landscape force for PDF download */
+.force-landscape .receipt-row {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 1.5rem !important;
+}
+.force-landscape .receipt-field {
+  display: flex !important;
 }
 
 @media print {
@@ -280,7 +322,15 @@ export default {
   .no-print {
     display: none !important;
   }
+  .receipt-card {
+    width: 90% !important;
+    margin: 0 auto !important;
+  }
   .receipt-row {
+    display: flex !important;
+    flex-direction: row !important;
+  }
+  .receipt-field {
     display: flex !important;
   }
 }

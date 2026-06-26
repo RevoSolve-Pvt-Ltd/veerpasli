@@ -38,7 +38,7 @@
 				<div class="receipt-inner">
 					<!-- Center-aligned Header -->
 					<div class="text-center mb-5">
-						<h2 class="org-name-title font-weight-bold mb-1">Veerpasli Donation</h2>
+						<h2 class="org-name-title font-weight-bold mb-1">Veerpasli Donation {{ donation_year }}</h2>
 						<div class="receipt-no-val font-weight-bold">Receipt No: {{ donation.name }}</div>
 					</div>
 
@@ -53,7 +53,12 @@
 					<div class="receipt-row">
 						<div class="receipt-field" style="flex: 2;">
 							<span class="field-label">Name / દાતાનું નામ:</span>
-							<span class="field-value font-weight-bold">{{ takti_gujarati }} {% if takti_english %}({{ takti_english }}){% endif %}</span>
+							<span class="field-value font-weight-bold">
+								{{ takti_gujarati }}
+								{% if takti_english %}
+									<span class="translation-val">({{ takti_english }})</span>
+								{% endif %}
+							</span>
 						</div>
 						<div class="receipt-field" style="flex: 1; margin-left: 25px;">
 							<span class="field-label">Phone / ફોન:</span>
@@ -64,11 +69,21 @@
 					<div class="receipt-row">
 						<div class="receipt-field" style="flex: 1;">
 							<span class="field-label">Village / ગામ:</span>
-							<span class="field-value">{{ donation.village }} {% if village_english %}({{ village_english }}){% endif %}</span>
+							<span class="field-value">
+								{{ donation.village }}
+								{% if village_english %}
+									<span class="translation-val">({{ village_english }})</span>
+								{% endif %}
+							</span>
 						</div>
 						<div class="receipt-field" style="flex: 1; margin-left: 25px;">
 							<span class="field-label">Location / સ્થળ:</span>
-							<span class="field-value">{{ donation.location }} {% if location_english %}({{ location_english }}){% endif %}</span>
+							<span class="field-value">
+								{{ donation.location }}
+								{% if location_english %}
+									<span class="translation-val">({{ location_english }})</span>
+								{% endif %}
+							</span>
 						</div>
 					</div>
 
@@ -79,27 +94,29 @@
 						</div>
 						<div class="receipt-field" style="flex: 1; margin-left: 25px;">
 							<span class="field-label">Collector / સંગ્રહકર્તા:</span>
-							<span class="field-value">{{ collector_name_guj }} {% if collector_name_eng %}({{ collector_name_eng }}){% endif %}</span>
+							<span class="field-value">
+								{{ collector_name_guj }}
+								{% if collector_name_eng %}
+									<span class="translation-val">({{ collector_name_eng }})</span>
+								{% endif %}
+							</span>
 						</div>
 					</div>
 
-					<!-- Bottom Row for Hastes Breakdown -->
-					{% if donors_list and (donors_list|length > 1 or donors_list[0].gujarati_fullname != takti_gujarati) %}
-						<div class="d-flex justify-content-end mt-4">
-							<div class="haste-box-simple">
-								<div class="haste-title font-weight-bold mb-1">
-									<i class="fa fa-users"></i> Haste Breakdown / હસ્તે વિગત:
-								</div>
-								<div class="haste-list">
+					<div class="receipt-row">
+						<div class="receipt-field" style="width: 100%;">
+							<span class="field-label">Haste / હસ્તે:</span>
+							<span class="field-value font-weight-bold">
+								{% if donors_list %}
 									{% for d in donors_list %}
-										<div class="haste-item py-1">
-											{{ d.gujarati_fullname }} {% if d.english_fullname %}({{ d.english_fullname }}){% endif %}: <strong>₹{{ d.amount }}</strong>
-										</div>
+										{{ d.gujarati_fullname }}{% if d.english_fullname %} ({{ d.english_fullname }}){% endif %} - ₹{{ d.amount }}{% if not loop.last %}, {% endif %}
 									{% endfor %}
-								</div>
-							</div>
+								{% else %}
+									N/A
+								{% endif %}
+							</span>
 						</div>
-					{% endif %}
+					</div>
 
 				</div>
 			</div>
@@ -113,7 +130,7 @@
 	}
 
 	.receipt-container {
-		max-width: 950px;
+		width: 100%;
 		margin: 2rem auto;
 		padding: 0 1.5rem;
 	}
@@ -123,6 +140,9 @@
 		border: 2px solid #000000;
 		border-radius: 8px;
 		padding: 0;
+		width: 90%;
+		max-width: 950px;
+		margin: 0 auto;
 	}
 
 	.receipt-border {
@@ -162,7 +182,7 @@
 		color: #000000;
 		white-space: nowrap;
 		margin-right: 10px;
-		font-size: 1rem;
+		font-size: 0.9rem;
 		padding-bottom: 2px;
 	}
 
@@ -171,9 +191,17 @@
 		flex-grow: 1;
 		padding-left: 12px;
 		padding-bottom: 2px;
-		font-size: 1.05rem;
+		font-size: 0.95rem;
 		color: #000000;
 		min-height: 28px;
+		word-break: break-word;
+	}
+
+	.translation-val {
+		font-size: 0.8rem;
+		font-weight: normal;
+		color: #6b7280;
+		margin-left: 4px;
 	}
 
 	/* Simple Haste Breakdown Box */
@@ -202,6 +230,40 @@
 		border-bottom: none;
 	}
 
+	/* Responsiveness for mobile screen view */
+	@media (max-width: 767px) {
+		.receipt-card {
+			width: 95%;
+		}
+		.receipt-row {
+			flex-direction: column;
+			align-items: stretch;
+			margin-bottom: 15px;
+		}
+		.receipt-field {
+			margin-left: 0 !important;
+			margin-top: 15px;
+		}
+		.field-label {
+			font-size: 0.85rem;
+		}
+		.field-value {
+			font-size: 0.9rem;
+		}
+		.translation-val {
+			font-size: 0.75rem;
+		}
+	}
+
+	/* Landscape force for PDF download */
+	.force-landscape .receipt-row {
+		display: flex !important;
+		flex-direction: row !important;
+	}
+	.force-landscape .receipt-field {
+		display: flex !important;
+	}
+
 	/* Print styles */
 	@media print {
 		@page {
@@ -219,12 +281,15 @@
 		}
 
 		.receipt-container {
+			width: 100% !important;
 			max-width: 100% !important;
 			margin: 0 !important;
 			padding: 0 !important;
 		}
 
 		.receipt-card {
+			width: 90% !important;
+			margin: 0 auto !important;
 			border: 2px solid #000000 !important;
 			border-radius: 8px !important;
 			box-shadow: none !important;
@@ -243,6 +308,7 @@
 
 		.receipt-row {
 			display: flex !important;
+			flex-direction: row !important;
 			margin-bottom: 25px !important;
 		}
 
@@ -269,6 +335,7 @@
 				downloadBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-1"></i> Downloading...';
 
 				const element = document.querySelector('.receipt-card');
+				if (element) element.classList.add('force-landscape');
 				const opt = {
 					margin:       [0.4, 0.4, 0.4, 0.4],
 					filename:     'Receipt-' + '{{ donation.name }}' + '.pdf',
@@ -279,10 +346,12 @@
 
 				setTimeout(function() {
 					html2pdf().set(opt).from(element).save().then(() => {
+						if (element) element.classList.remove('force-landscape');
 						downloadBtn.disabled = false;
 						downloadBtn.innerHTML = originalText;
 					}).catch(err => {
 						console.error(err);
+						if (element) element.classList.remove('force-landscape');
 						downloadBtn.disabled = false;
 						downloadBtn.innerHTML = originalText;
 					});
