@@ -305,13 +305,18 @@ def get_translation(text):
 		params = {
 			"text": text,
 			"itc": "gu-t-i0-und",
-			"num": 5
+			"num": 13,
+			"cp": 0,
+			"cs": 1,
+			"ie": "utf-8",
+			"oe": "utf-8",
+			"app": "jsapi"
 		}
 		response = requests.get(url, params=params, timeout=5)
 		if response.status_code == 200:
 			res = response.json()
 			if res and len(res) > 1 and len(res[1]) > 0:
-				options = res[1][0].get("suggested_words", [])
+				options = res[1][0][1]
 	except Exception:
 		pass
 
