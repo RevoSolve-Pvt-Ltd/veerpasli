@@ -26,9 +26,6 @@
       <!-- Page Header -->
       <div class="flex items-center justify-between mb-6">
         <div>
-          <p class="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-1">
-            Create Donation
-          </p>
           <h1 class="text-xl font-bold text-gray-900">New Donation Entry</h1>
         </div>
         <Button icon-left="arrow-left" @click="$router.push('/')">Dashboard</Button>
@@ -36,19 +33,6 @@
 
       <!-- Form Card -->
       <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-5">
-
-        <!-- Collector Field (Disabled) -->
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-1.5">
-            Collector / સંગ્રહકર્તા
-          </label>
-          <Input
-            :value="collector.gujarati_fullname + ' (' + collector.english_fullname + ')'"
-            disabled
-          />
-        </div>
-
-        <div class="border-t border-gray-100" />
 
         <!-- Success Alert -->
         <Alert v-if="successMsg" :title="successMsg.title">
@@ -105,29 +89,8 @@
 
         <div class="border-t border-gray-100" />
 
-        <!-- ── Date ─────────────────────────────────────── -->
-        <div>
-          <label class="block text-sm font-semibold text-gray-700 mb-1.5">
-            Donation Date <span class="text-red-500">*</span>
-          </label>
-          <Input v-model="form.donation_date" type="date" required />
-        </div>
-
-        <!-- ── Donor Names ────────────────────────────── -->
+        <!-- ── Donor Names (English first, then Gujarati) ── -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1.5">
-              Donor Gujarati Name <span class="text-red-500">*</span>
-            </label>
-            <Input
-              :value="form.donor_name_guj"
-              placeholder="દાતાનું નામ (ગુજરાતીમાં)"
-              @input="(v) => { form.donor_name_guj = v; onGujInput() }"
-              @change="(v) => { form.donor_name_guj = v; onGujInput() }"
-              required
-            />
-          </div>
-
           <div class="relative">
             <label class="block text-sm font-semibold text-gray-700 mb-1.5">
               Donor English Name
@@ -153,19 +116,23 @@
               </button>
             </div>
           </div>
-        </div>
 
-        <!-- ── Mobile & Village ──────────────────────── -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1.5">
-              Mobile Number
+              Donor Gujarati Name <span class="text-red-500">*</span>
             </label>
             <Input
-              v-model="form.mobile"
-              placeholder="10-digit Mobile Number"
+              :value="form.donor_name_guj"
+              placeholder="દાતાનું નામ (ગુજરાતીમાં)"
+              @input="(v) => { form.donor_name_guj = v; onGujInput() }"
+              @change="(v) => { form.donor_name_guj = v; onGujInput() }"
+              required
             />
           </div>
+        </div>
+
+        <!-- ── Village & Location ────────────────────────── -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="relative" id="village-container">
             <label class="block text-sm font-semibold text-gray-700 mb-1.5">
               Village <span class="text-red-500">*</span>
@@ -193,10 +160,31 @@
               </button>
             </div>
           </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1.5">
+              Location <span class="text-red-500">*</span>
+            </label>
+            <Input
+              v-model="form.location"
+              type="select"
+              :options="locationSelectOptions"
+            />
+          </div>
         </div>
 
-        <!-- ── Amount & Location ───────────────────── -->
+        <!-- ── Mobile Number & Donation Amount ───────────── -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1.5">
+              Mobile Number
+            </label>
+            <Input
+              v-model="form.mobile"
+              placeholder="10-digit Mobile Number"
+            />
+          </div>
+
           <div>
             <label class="block text-sm font-semibold text-gray-700 mb-1.5">
               Donation Amount (INR) <span class="text-red-500">*</span>
@@ -215,32 +203,21 @@
               />
             </div>
           </div>
-          <div>
-            <label class="block text-sm font-semibold text-gray-700 mb-1.5">
-              Location <span class="text-red-500">*</span>
-            </label>
-            <Input
-              v-model="form.location"
-              type="select"
-              :options="locationSelectOptions"
-            />
-          </div>
         </div>
 
-        <!-- ── Hastes Section ─────────────────────── -->
-        <div class="bg-gray-50 rounded-xl border border-gray-100 p-4">
-          <div class="flex items-center justify-between mb-3">
-            <p class="text-sm font-semibold text-gray-600 flex items-center gap-2">
-              <FeatherIcon name="users" class="w-4 h-4" />
+        <!-- ── Hastes Section (Improved styling: no card border, integrated flow) ── -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="block text-sm font-semibold text-gray-700">
               Haste / હસ્તે
-            </p>
-            <Button icon-left="plus" @click="addHaste">Add Haste</Button>
+            </label>
+            <Button size="sm" icon-left="plus" @click="addHaste">Add Haste</Button>
           </div>
 
           <div
             v-for="(haste, idx) in hastes"
             :key="haste.id"
-            class="flex items-start gap-2 mb-2"
+            class="flex items-start gap-2"
           >
             <div class="flex-1 relative">
               <Input
@@ -272,9 +249,31 @@
             </button>
           </div>
 
-          <p class="text-xs text-gray-400 mt-2">
-            If Hastes are added, the total amount will be split equally among them.
+          <p class="text-xs text-gray-400">
+            If Haste is added, the total amount will be split equally among them.
           </p>
+        </div>
+
+        <div class="border-t border-gray-100" />
+
+        <!-- ── Date beside Collector (Disabled, at last) ── -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1.5">
+              Donation Date <span class="text-red-500">*</span>
+            </label>
+            <Input v-model="form.donation_date" type="date" required />
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1.5">
+              Collector / સંગ્રહકર્તા
+            </label>
+            <Input
+              :value="collector.gujarati_fullname + ' (' + collector.english_fullname + ')'"
+              disabled
+            />
+          </div>
         </div>
 
         <!-- ── Submit ──────────────────────────────── -->
@@ -288,7 +287,6 @@
             Save Donation
           </Button>
         </div>
-
       </div>
     </div>
   </div>
