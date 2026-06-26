@@ -8,7 +8,8 @@ from veerpasli.veerpasli.doctype.pdf_page.pdf_page import (
 	get_or_create_village,
 	get_translated_names,
 	get_or_create_person,
-	distribute_amount_equally
+	distribute_amount_equally,
+	normalize_mobile_number
 )
 
 # ---------------------------------------------------------------------------
@@ -356,12 +357,12 @@ def create_donation(donor_data, amount, village, location, donation_date=None, h
 	if donor_name and frappe.db.exists("Person", donor_name):
 		donor_doc = frappe.get_doc("Person", donor_name)
 		if donor_data.get("mobile_number") and not donor_doc.mobile_number:
-			donor_doc.mobile_number = donor_data.get("mobile_number")
+			donor_doc.mobile_number = normalize_mobile_number(donor_data.get("mobile_number"))
 			donor_doc.save(ignore_permissions=True)
 	else:
 		guj_name = donor_data.get("gujarati_fullname", "").strip()
 		eng_name = donor_data.get("english_fullname", "").strip()
-		mobile = donor_data.get("mobile_number", "").strip()
+		mobile = normalize_mobile_number(donor_data.get("mobile_number", "").strip())
 
 		if not guj_name and not eng_name:
 			frappe.throw(_("Donor name (Gujarati or English) is required."))
