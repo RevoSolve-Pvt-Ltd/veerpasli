@@ -257,7 +257,12 @@ export default {
           window.location.href = getLoginUrl('/donation')
           return
         }
-        this.error = err.message || 'You must be registered as a Collector to access this dashboard.'
+        let msg = err.message || 'You must be registered as a Collector to access this dashboard.'
+        if (msg.includes('/api/method/')) {
+          msg = msg.replace(/^\/api\/method\/[a-zA-Z0-9_\.]+\s+/, '')
+        }
+        msg = msg.replace(/<\/?[^>]+(>|$)/g, "")
+        this.error = msg
       } finally {
         this.loading = false
       }

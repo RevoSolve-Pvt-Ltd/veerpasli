@@ -197,7 +197,12 @@ export default {
         window.location.href = getLoginUrl(`/donation/receipt/${name}`)
         return
       }
-      this.error = err.message || 'Failed to load receipt.'
+      let msg = err.message || 'Failed to load receipt.'
+      if (msg.includes('/api/method/')) {
+        msg = msg.replace(/^\/api\/method\/[a-zA-Z0-9_\.]+\s+/, '')
+      }
+      msg = msg.replace(/<\/?[^>]+(>|$)/g, "")
+      this.error = msg
     } finally {
       this.loading = false
     }

@@ -365,7 +365,12 @@ export default {
         window.location.href = getLoginUrl('/donation/create')
         return
       }
-      this.contextError = err.message || 'You must be registered as a Collector to access this page.'
+      let msg = err.message || 'You must be registered as a Collector to access this page.'
+      if (msg.includes('/api/method/')) {
+        msg = msg.replace(/^\/api\/method\/[a-zA-Z0-9_\.]+\s+/, '')
+      }
+      msg = msg.replace(/<\/?[^>]+(>|$)/g, "")
+      this.contextError = msg
     } finally {
       this.loading = false
     }
@@ -517,7 +522,25 @@ export default {
           this.formError = 'Failed to save donation. Please try again.'
         }
       } catch (err) {
-        this.formError = err.message || 'An error occurred while saving the donation.'
+        let msg = err.message || 'An error occurred while saving the donation.'
+        if (err.messages && Array.isArray(err.messages)) {
+          msg = err.messages.map(m => {
+            try {
+              const parsed = JSON.parse(m)
+              return parsed.message || parsed
+            } catch {
+              return m
+            }
+          }).join('\n')
+        }
+        if (msg.includes('/api/method/')) {
+          msg = msg.replace(/^\/api\/method\/[a-zA-Z0-9_\.]+\s+/, '')
+        }
+        if (msg.includes('DuplicateEntryError')) {
+          msg = 'A duplicate entry error occurred. This donor, village, or location might already exist.'
+        }
+        msg = msg.replace(/<\/?[^>]+(>|$)/g, "")
+        this.formError = msg
       } finally {
         this.submitting = false
       }
