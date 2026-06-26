@@ -171,17 +171,19 @@
               Village <span class="text-red-500">*</span>
             </label>
             <Input
-              v-model="form.village"
+              :value="form.village"
               placeholder="Search or type village name…"
+              @input="(v) => { form.village = v; showVillageDropdown = true }"
+              @change="(v) => { form.village = v; showVillageDropdown = true }"
               @focus="showVillageDropdown = true"
             />
             <!-- Dropdown Options -->
             <div
-              v-if="showVillageDropdown && filteredVillages.length > 0"
+              v-if="showVillageDropdown && filteredVillagesList.length > 0"
               class="absolute z-50 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg max-h-60 overflow-y-auto"
             >
               <button
-                v-for="v in filteredVillages"
+                v-for="v in filteredVillagesList"
                 :key="v.name"
                 class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex flex-col border-b border-gray-50 last:border-0"
                 @click="selectVillage(v)"
@@ -325,6 +327,7 @@ export default {
       // Village Autocomplete
       selectedVillageOption: null,
       showVillageDropdown: false,
+      filteredVillagesList: [],
 
       // Form fields
       form: {
@@ -344,6 +347,19 @@ export default {
       _donorTimer: null,
       _gujTimer: null,
       _engTimer: null,
+      _villageTimer: null,
+    }
+  },
+
+  watch: {
+    'form.village'(val) {
+      this.onVillageInput(val)
+    },
+    villages: {
+      immediate: true,
+      handler(val) {
+        this.filteredVillagesList = val || []
+      }
     }
   },
 
@@ -353,15 +369,6 @@ export default {
         label: v.english_name ? `${v.name} (${v.english_name})` : v.name,
         value: v.name,
       }))
-    },
-    filteredVillages() {
-      const query = (this.form.village || '').trim().toLowerCase()
-      if (!query) return this.villages
-      return this.villages.filter((v) => {
-        const name = (v.name || '').toLowerCase()
-        const eng = (v.english_name || '').toLowerCase()
-        return name.includes(query) || eng.includes(query)
-      })
     },
     locationSelectOptions() {
       return [
@@ -446,7 +453,7 @@ export default {
       this._gujTimer = setTimeout(async () => {
         const res = await getTranslation(val)
         if (res && res.english) this.form.donor_name_eng = res.english
-      }, 600)
+      }, 250)
     },
 
     // ── English → Gujarati suggestions ───────────────────
@@ -458,7 +465,7 @@ export default {
       this._engTimer = setTimeout(async () => {
         const res = await getTranslation(val)
         this.translationSuggestions = (res && res.options) ? res.options : []
-      }, 600)
+      }, 250)
     },
 
     selectTranslation(opt) {
@@ -467,6 +474,22 @@ export default {
     },
 
     // ── Village ───────────────────────────────────────────
+    onVillageInput(val) {
+      clearTimeout(this._villageTimer)
+      this._villageTimer = setTimeout(() => {
+        const query = (val || '').trim().toLowerCase()
+        if (!query) {
+          this.filteredVillagesList = this.villages
+          return
+        }
+        this.filteredVillagesList = this.villages.filter((v) => {
+          const name = (v.name || '').toLowerCase()
+          const eng = (v.english_name || '').toLowerCase()
+          return name.includes(query) || eng.includes(query)
+        })
+      }, 200)
+    },
+
     selectVillage(v) {
       this.form.village = v.name
       this.showVillageDropdown = false
