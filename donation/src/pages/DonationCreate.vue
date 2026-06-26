@@ -232,7 +232,7 @@
           <div class="flex items-center justify-between mb-3">
             <p class="text-sm font-semibold text-gray-600 flex items-center gap-2">
               <FeatherIcon name="users" class="w-4 h-4" />
-              Haste / Through (હસ્તે)
+              Haste / હસ્તે
             </p>
             <Button icon-left="plus" @click="addHaste">Add Haste</Button>
           </div>
