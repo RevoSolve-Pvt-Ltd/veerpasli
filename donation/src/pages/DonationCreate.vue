@@ -166,17 +166,30 @@
               placeholder="10-digit Mobile Number"
             />
           </div>
-          <div>
+          <div class="relative" id="village-container">
             <label class="block text-sm font-semibold text-gray-700 mb-1.5">
               Village <span class="text-red-500">*</span>
             </label>
-            <!-- Autocomplete works great here — static filtered list -->
-            <Autocomplete
-              :options="villageOptions"
-              :value="selectedVillageOption"
-              placeholder="Search village…"
-              @change="onVillageChange"
+            <Input
+              v-model="form.village"
+              placeholder="Search or type village name…"
+              @focus="showVillageDropdown = true"
             />
+            <!-- Dropdown Options -->
+            <div
+              v-if="showVillageDropdown && filteredVillages.length > 0"
+              class="absolute z-50 w-full mt-1 bg-white rounded-lg border border-gray-200 shadow-lg max-h-60 overflow-y-auto"
+            >
+              <button
+                v-for="v in filteredVillages"
+                :key="v.name"
+                class="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex flex-col border-b border-gray-50 last:border-0"
+                @click="selectVillage(v)"
+              >
+                <span class="font-semibold text-gray-800">{{ v.name }}</span>
+                <span v-if="v.english_name" class="text-xs text-gray-500">{{ v.english_name }}</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -311,6 +324,7 @@ export default {
 
       // Village Autocomplete
       selectedVillageOption: null,
+      showVillageDropdown: false,
 
       // Form fields
       form: {
@@ -340,6 +354,15 @@ export default {
         value: v.name,
       }))
     },
+    filteredVillages() {
+      const query = (this.form.village || '').trim().toLowerCase()
+      if (!query) return this.villages
+      return this.villages.filter((v) => {
+        const name = (v.name || '').toLowerCase()
+        const eng = (v.english_name || '').toLowerCase()
+        return name.includes(query) || eng.includes(query)
+      })
+    },
     locationSelectOptions() {
       return [
         { label: '-- Select Location --', value: '' },
@@ -352,8 +375,8 @@ export default {
   },
 
   async created() {
-    // Close dropdowns on outside click
-    document.addEventListener('click', this.handleOutsideClick)
+    this.handleOutsideClickBound = this.handleOutsideClick.bind(this)
+    document.addEventListener('click', this.handleOutsideClickBound)
     try {
       const ctx = await getFormContext()
       this.collector = ctx.collector
@@ -376,11 +399,17 @@ export default {
   },
 
   beforeUnmount() {
-    document.removeEventListener('click', this.handleOutsideClick)
+    document.removeEventListener('click', this.handleOutsideClickBound)
   },
 
   methods: {
-    handleOutsideClick() {
+    handleOutsideClick(e) {
+      if (e) {
+        const villageContainer = document.getElementById('village-container')
+        if (villageContainer && !villageContainer.contains(e.target)) {
+          this.showVillageDropdown = false
+        }
+      }
       this.donorResults = []
       this.translationSuggestions = []
       this.hastes.forEach((h) => { h.searchResults = [] })
@@ -403,9 +432,7 @@ export default {
       this.form.donor_name_eng = donor.english_fullname || ''
       this.form.mobile = donor.mobile_number || ''
       this.form.village = donor.village_gujarati_name || ''
-      // Pre-select village in autocomplete
-      const match = this.villageOptions.find((v) => v.value === donor.village_gujarati_name)
-      if (match) this.selectedVillageOption = match
+      this.showVillageDropdown = false
       this.donorSearchText = `${donor.gujarati_fullname} (${donor.mobile_number || 'N/A'})`
       this.donorResults = []
     },
@@ -440,11 +467,9 @@ export default {
     },
 
     // ── Village ───────────────────────────────────────────
-    onVillageChange(option) {
-      if (option) {
-        this.form.village = option.value
-        this.selectedVillageOption = option
-      }
+    selectVillage(v) {
+      this.form.village = v.name
+      this.showVillageDropdown = false
     },
 
     // ── Hastes ────────────────────────────────────────────
@@ -549,6 +574,7 @@ export default {
       this.selectedDonorId = ''
       this.donorSearchText = ''
       this.selectedVillageOption = null
+      this.showVillageDropdown = false
       this.hastes = []
       this.form = {
         donation_date: '2024-08-01',

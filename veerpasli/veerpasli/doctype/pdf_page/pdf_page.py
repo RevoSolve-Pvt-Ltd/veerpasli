@@ -943,7 +943,12 @@ def get_translated_names(text):
 
 
 def get_or_create_village(village_name):
+	if not village_name:
+		return None
 	village_name = village_name.strip()
+	if frappe.db.exists('Village', village_name):
+		return frappe.get_doc('Village', village_name)
+
 	guj_name, eng_name = get_translated_names(village_name)
 	
 	docname = frappe.db.get_value('Village', {'gujarati_name': guj_name})
