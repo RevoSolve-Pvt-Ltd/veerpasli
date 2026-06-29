@@ -1,5 +1,15 @@
 import { frappeRequest } from 'frappe-ui'
 
+export function isLoggedIn() {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; user_id=`);
+  if (parts.length === 2) {
+    const userId = decodeURIComponent(parts.pop().split(';').shift());
+    return userId && userId !== 'Guest' && userId !== '';
+  }
+  return false;
+}
+
 export function getLoginUrl(redirectToPath = '/donation') {
   let loginUrl = '/login'
   let redirectUrl = window.location.origin + redirectToPath

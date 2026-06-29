@@ -141,7 +141,7 @@
 
 <script>
 import { Button, FeatherIcon, LoadingIndicator } from 'frappe-ui'
-import { getDonationReceipt, getLoginUrl } from '@/utils/api'
+import { getDonationReceipt, getLoginUrl, isLoggedIn } from '@/utils/api'
 
 export default {
   name: 'DonationReceipt',
@@ -151,6 +151,7 @@ export default {
   data() {
     return {
       loading: true,
+      redirecting: false,
       error: null,
       data: null,
       downloading: false,
@@ -185,8 +186,20 @@ export default {
     try {
       this.data = await getDonationReceipt(name)
     } catch (err) {
-      if (err.exc_type === 'PermissionError' || (err.message && err.message.includes('Login to access'))) {
+      if (!isLoggedIn()) {
+        this.redirecting = true
         window.location.href = getLoginUrl(`/donation/receipt/${name}`)
+        return
+      }
+      const isAuthError = err.exc_type === 'PermissionError' || 
+                          (err.message && (
+                            err.message.includes('not registered as a Collector') || 
+                            err.message.includes('CSRF') ||
+                            err.message.includes('Not permitted')
+                          ));
+      if (isAuthError) {
+        this.redirecting = true
+        window.location.href = '/app'
         return
       }
       let msg = err.message || 'Failed to load receipt.'
@@ -196,7 +209,9 @@ export default {
       msg = msg.replace(/<\/?[^>]+(>|$)/g, "")
       this.error = msg
     } finally {
-      this.loading = false
+      if (!this.redirecting) {
+        this.loading = false
+      }
     }
   },
 

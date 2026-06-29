@@ -361,7 +361,7 @@
 
 <script>
 import { Button, Input, Autocomplete, FeatherIcon, LoadingIndicator, Alert, Dialog } from 'frappe-ui'
-import { getFormContext, searchDonor, getTranslation, createWebDonation, getLoginUrl } from '@/utils/api'
+import { getFormContext, searchDonor, getTranslation, createWebDonation, getLoginUrl, isLoggedIn } from '@/utils/api'
 
 export default {
   name: 'DonationCreate',
@@ -371,6 +371,7 @@ export default {
   data() {
     return {
       loading: true,
+      redirecting: false,
       contextError: null,
       submitting: false,
       successMsg: null,
@@ -456,8 +457,20 @@ export default {
       this.villages = ctx.villages
       this.locations = ctx.locations
     } catch (err) {
-      if (err.exc_type === 'PermissionError' || (err.message && err.message.includes('Login to access'))) {
+      if (!isLoggedIn()) {
+        this.redirecting = true
         window.location.href = getLoginUrl('/donation/create')
+        return
+      }
+      const isAuthError = err.exc_type === 'PermissionError' || 
+                          (err.message && (
+                            err.message.includes('not registered as a Collector') || 
+                            err.message.includes('CSRF') ||
+                            err.message.includes('Not permitted')
+                          ));
+      if (isAuthError) {
+        this.redirecting = true
+        window.location.href = '/app'
         return
       }
       let msg = err.message || 'You must be registered as a Collector to access this page.'
@@ -467,7 +480,9 @@ export default {
       msg = msg.replace(/<\/?[^>]+(>|$)/g, "")
       this.contextError = msg
     } finally {
-      this.loading = false
+      if (!this.redirecting) {
+        this.loading = false
+      }
     }
   },
 

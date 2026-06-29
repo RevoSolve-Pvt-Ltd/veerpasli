@@ -201,7 +201,7 @@
 
 <script>
 import { Button, Input, FeatherIcon, LoadingIndicator } from 'frappe-ui'
-import { getDonationsDashboard, getLoginUrl, logout } from '@/utils/api'
+import { getDonationsDashboard, getLoginUrl, logout, isLoggedIn } from '@/utils/api'
 
 export default {
   name: 'DonationsList',
@@ -210,6 +210,7 @@ export default {
   data() {
     return {
       initialLoading: true,
+      redirecting: false,
       tableLoading: false,
       error: null,
       collector: {},
@@ -271,8 +272,20 @@ export default {
         this.totalAmount = data.total_collected_amount || 0
         this.totalDonors = data.total_donors || 0
       } catch (err) {
-        if (err.exc_type === 'PermissionError' || (err.message && err.message.includes('Login to access'))) {
+        if (!isLoggedIn()) {
+          this.redirecting = true
           window.location.href = getLoginUrl('/donation')
+          return
+        }
+        const isAuthError = err.exc_type === 'PermissionError' || 
+                            (err.message && (
+                              err.message.includes('not registered as a Collector') || 
+                              err.message.includes('CSRF') ||
+                              err.message.includes('Not permitted')
+                            ));
+        if (isAuthError) {
+          this.redirecting = true
+          window.location.href = '/app'
           return
         }
         let msg = err.message || 'Failed to fetch donations. Please check your connection.'
@@ -282,7 +295,9 @@ export default {
         msg = msg.replace(/<\/?[^>]+(>|$)/g, "")
         this.error = msg
       } finally {
-        this.initialLoading = false
+        if (!this.redirecting) {
+          this.initialLoading = false
+        }
         this.tableLoading = false
       }
     },
