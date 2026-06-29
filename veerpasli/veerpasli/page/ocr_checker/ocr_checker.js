@@ -584,6 +584,11 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
         function renderModalContent() {
             var html = '<div class="ocr-checker-modal">';
 
+            if (box.boundingBox) {
+                html += '<div class="mb-2"><strong>Merged Area Preview</strong></div>';
+                html += '<canvas id="ocrModalPreviewCanvas" style="width: 100%; height: 180px; display: block; border-radius: 6px; border: 1px solid #e5e7eb; background: #f3f4f6; margin-bottom: 15px;"></canvas>';
+            }
+
             // 1. Entry Type
             html += '<div class="mb-2"><strong>Entry Type</strong></div>';
             html += '<div class="d-flex flex-wrap gap-2 mb-4">';
@@ -894,6 +899,79 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                     $tok.find('.ocr-token-delete').before($order);
                 }
             });
+        }
+
+        function drawPreviewCanvas() {
+            var canvas = dialog.fields_dict.content.$wrapper.find('#ocrModalPreviewCanvas')[0];
+            if (!canvas) return;
+
+            var img = $image[0];
+            if (!img || !img.naturalWidth) return;
+
+            var rectWidth = canvas.clientWidth || 400;
+            var rectHeight = canvas.clientHeight || 180;
+            var dpr = window.devicePixelRatio || 1;
+            canvas.width = rectWidth * dpr;
+            canvas.height = rectHeight * dpr;
+
+            var ctx = canvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+            ctx.clearRect(0, 0, rectWidth, rectHeight);
+
+            var bb = box.boundingBox;
+            if (!bb) return;
+
+            var W_img = img.naturalWidth;
+            var H_img = img.naturalHeight;
+
+            var bx = (bb.centerPerX - bb.perWidth / 2) * W_img;
+            var by = (bb.centerPerY - bb.perHeight / 2) * H_img;
+            var bw = bb.perWidth * W_img;
+            var bh = bb.perHeight * H_img;
+
+            var cw = bw * 2.5;
+            var ch = bh * 2.5;
+
+            var canvasAR = rectWidth / rectHeight;
+            if (cw / ch > canvasAR) {
+                ch = cw / canvasAR;
+            } else {
+                cw = ch * canvasAR;
+            }
+
+            if (cw > W_img) {
+                cw = W_img;
+                ch = cw / canvasAR;
+            }
+            if (ch > H_img) {
+                ch = H_img;
+                cw = ch * canvasAR;
+            }
+
+            var cx = bb.centerPerX * W_img - cw / 2;
+            var cy = bb.centerPerY * H_img - ch / 2;
+
+            if (cx < 0) cx = 0;
+            if (cx + cw > W_img) cx = W_img - cw;
+            if (cy < 0) cy = 0;
+            if (cy + ch > H_img) cy = H_img - ch;
+
+            ctx.drawImage(img, cx, cy, cw, ch, 0, 0, rectWidth, rectHeight);
+
+            var sx = rectWidth / cw;
+            var sy = rectHeight / ch;
+
+            var x_cvs = (bx - cx) * sx;
+            var y_cvs = (by - cy) * sy;
+            var w_cvs = bw * sx;
+            var h_cvs = bh * sy;
+
+            ctx.fillStyle = 'rgba(0, 123, 255, 0.15)';
+            ctx.fillRect(x_cvs, y_cvs, w_cvs, h_cvs);
+
+            ctx.strokeStyle = '#007bff';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(x_cvs, y_cvs, w_cvs, h_cvs);
         }
 
         function redraw() {
@@ -1211,6 +1289,11 @@ frappe.pages['ocr-checker'].on_page_load = function (wrapper) {
                 }
                 redraw();
             });
+
+            if (box.boundingBox) {
+                setTimeout(drawPreviewCanvas, 10);
+                setTimeout(drawPreviewCanvas, 100);
+            }
         }
 
         dialog.set_primary_action('Submit', submitBoxEntry);
