@@ -363,6 +363,14 @@
 import { Button, Input, Autocomplete, FeatherIcon, LoadingIndicator, Alert, Dialog } from 'frappe-ui'
 import { getFormContext, searchDonor, getTranslation, createWebDonation, getLoginUrl, isLoggedIn } from '@/utils/api'
 
+function getTodayDate() {
+  const d = new Date()
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export default {
   name: 'DonationCreate',
 
@@ -398,7 +406,7 @@ export default {
 
       // Form fields
       form: {
-        donation_date: '2024-08-01',
+        donation_date: getTodayDate(),
         donor_name_guj: '',
         donor_name_eng: '',
         mobile: '',
@@ -690,7 +698,7 @@ export default {
       this.showVillageDropdown = false
       this.hastes = []
       this.form = {
-        donation_date: '2024-08-01',
+        donation_date: getTodayDate(),
         donor_name_guj: '',
         donor_name_eng: '',
         mobile: '',
