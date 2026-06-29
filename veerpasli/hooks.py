@@ -64,6 +64,12 @@ app_license = "mit"
 # 	"Role": "home_page"
 # }
 
+get_website_user_home_page = "veerpasli.api.get_website_user_home_page"
+
+website_route_rules = [
+	{"from_route": "/donation/<path:app_path>", "to_route": "donation"}
+]
+
 # Generators
 # ----------
 

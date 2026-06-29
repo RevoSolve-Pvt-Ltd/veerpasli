@@ -1,0 +1,363 @@
+{% extends "templates/web.html" %}
+
+{% block page_content %}
+<div class="receipt-container my-5">
+	{% if unauthorized %}
+		<div class="alert alert-danger text-center shadow-sm no-print">
+			<h4 class="alert-heading"><i class="fa fa-lock"></i> Access Denied</h4>
+			<p>You must be registered as a Collector to view this receipt.</p>
+			<hr>
+			<p class="mb-0"><a href="/login" class="btn btn-primary btn-sm">Log in as Collector</a></p>
+		</div>
+	{% elif error %}
+		<div class="alert alert-warning text-center shadow-sm no-print">
+			<h4 class="alert-heading"><i class="fa fa-exclamation-triangle"></i> Error</h4>
+			<p>{{ error }}</p>
+			<hr>
+			<p class="mb-0"><a href="/donations" class="btn btn-secondary btn-sm">Go to Dashboard</a></p>
+		</div>
+	{% else %}
+		<!-- Actions Bar (Hidden on Print) -->
+		<div class="d-flex justify-content-between align-items-center mb-4 no-print" style="max-width: 950px; margin: 0 auto;">
+			<a href="/donations" class="btn btn-outline-secondary">
+				<i class="fa fa-arrow-left mr-1"></i> Dashboard
+			</a>
+			<div>
+				<button id="download_pdf_btn" class="btn btn-primary shadow-sm mr-2">
+					<i class="fa fa-download mr-1"></i> Download PDF
+				</button>
+				<button onclick="window.print()" class="btn btn-outline-primary shadow-sm">
+					<i class="fa fa-print mr-1"></i> Print
+				</button>
+			</div>
+		</div>
+
+		<!-- Simple Traditional Landscape Receipt Card -->
+		<div class="card receipt-card">
+			<div class="receipt-border">
+				<div class="receipt-inner">
+					<!-- Center-aligned Header -->
+					<div class="text-center mb-5">
+						<h2 class="org-name-title font-weight-bold mb-1">Veerpasli Donation {{ donation_year }}</h2>
+						<div class="receipt-no-val font-weight-bold">Receipt No: {{ donation.name }}</div>
+					</div>
+
+					<!-- Field Rows with Underlines -->
+					<div class="receipt-row">
+						<div class="receipt-field" style="width: 100%;">
+							<span class="field-label">Date / તારીખ:</span>
+							<span class="field-value">{{ donation.donation_date }}</span>
+						</div>
+					</div>
+
+					<div class="receipt-row">
+						<div class="receipt-field" style="flex: 2;">
+							<span class="field-label">Name / દાતાનું નામ:</span>
+							<span class="field-value font-weight-bold">
+								{{ takti_gujarati }}
+								{% if takti_english %}
+									<span class="translation-val">({{ takti_english }})</span>
+								{% endif %}
+							</span>
+						</div>
+						<div class="receipt-field" style="flex: 1; margin-left: 25px;">
+							<span class="field-label">Phone / ફોન:</span>
+							<span class="field-value">{{ takti_mobile or 'N/A' }}</span>
+						</div>
+					</div>
+
+					<div class="receipt-row">
+						<div class="receipt-field" style="flex: 1;">
+							<span class="field-label">Village / ગામ:</span>
+							<span class="field-value">
+								{{ donation.village }}
+								{% if village_english %}
+									<span class="translation-val">({{ village_english }})</span>
+								{% endif %}
+							</span>
+						</div>
+						<div class="receipt-field" style="flex: 1; margin-left: 25px;">
+							<span class="field-label">Location / સ્થળ:</span>
+							<span class="field-value">
+								{{ donation.location }}
+								{% if location_english %}
+									<span class="translation-val">({{ location_english }})</span>
+								{% endif %}
+							</span>
+						</div>
+					</div>
+
+					<div class="receipt-row">
+						<div class="receipt-field" style="flex: 1;">
+							<span class="field-label">Cash Amount / રકમ:</span>
+							<span class="field-value font-weight-bold">₹{{ donation.amount_english }} /-</span>
+						</div>
+						<div class="receipt-field" style="flex: 1; margin-left: 25px;">
+							<span class="field-label">Collector / સંગ્રહકર્તા:</span>
+							<span class="field-value">
+								{{ collector_name_guj }}
+								{% if collector_name_eng %}
+									<span class="translation-val">({{ collector_name_eng }})</span>
+								{% endif %}
+							</span>
+						</div>
+					</div>
+
+					<div class="receipt-row">
+						<div class="receipt-field" style="width: 100%;">
+							<span class="field-label">Haste / હસ્તે:</span>
+							<span class="field-value font-weight-bold">
+								{% if donors_list %}
+									{% for d in donors_list %}
+										{{ d.gujarati_fullname }}{% if d.english_fullname %} ({{ d.english_fullname }}){% endif %} - ₹{{ d.amount }}{% if not loop.last %}, {% endif %}
+									{% endfor %}
+								{% else %}
+									N/A
+								{% endif %}
+							</span>
+						</div>
+					</div>
+
+				</div>
+			</div>
+		</div>
+	{% endif %}
+</div>
+
+<style>
+	footer.web-footer, .web-footer {
+		display: none !important;
+	}
+
+	.receipt-container {
+		width: 100%;
+		margin: 2rem auto;
+		padding: 0 1.5rem;
+	}
+
+	.receipt-card {
+		background: #ffffff;
+		border: 2px solid #000000;
+		border-radius: 8px;
+		padding: 0;
+		width: 90%;
+		max-width: 950px;
+		margin: 0 auto;
+	}
+
+	.receipt-border {
+		padding: 40px;
+	}
+
+	.receipt-inner {
+		position: relative;
+	}
+
+	.org-name-title {
+		color: #000000;
+		font-size: 2.2rem;
+		letter-spacing: 0.05em;
+	}
+
+	.receipt-no-val {
+		font-size: 1.2rem;
+		color: #333333;
+		margin-top: 5px;
+	}
+
+	/* Field underline layout */
+	.receipt-row {
+		display: flex;
+		align-items: flex-end;
+		margin-bottom: 30px;
+	}
+
+	.receipt-field {
+		display: flex;
+		align-items: flex-end;
+	}
+
+	.field-label {
+		font-weight: 700;
+		color: #000000;
+		white-space: nowrap;
+		margin-right: 10px;
+		font-size: 0.9rem;
+		padding-bottom: 2px;
+	}
+
+	.field-value {
+		border-bottom: 1.5px solid #000000;
+		flex-grow: 1;
+		padding-left: 12px;
+		padding-bottom: 2px;
+		font-size: 0.95rem;
+		color: #000000;
+		min-height: 28px;
+		word-break: break-word;
+	}
+
+	.translation-val {
+		font-size: 0.8rem;
+		font-weight: normal;
+		color: #6b7280;
+		margin-left: 4px;
+	}
+
+	/* Simple Haste Breakdown Box */
+	.haste-box-simple {
+		font-size: 0.9rem;
+		border: 1.5px solid #000000;
+		border-radius: 4px;
+		padding: 12px 18px;
+		max-width: 380px;
+		background: #ffffff;
+		text-align: left;
+	}
+
+	.haste-title {
+		font-size: 0.85rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		border-bottom: 1px solid #000000;
+		padding-bottom: 4px;
+	}
+
+	.haste-item {
+		border-bottom: 1px dashed #dddddd;
+	}
+	.haste-item:last-child {
+		border-bottom: none;
+	}
+
+	/* Responsiveness for mobile screen view */
+	@media (max-width: 767px) {
+		.receipt-card {
+			width: 95%;
+		}
+		.receipt-row {
+			flex-direction: column;
+			align-items: stretch;
+			margin-bottom: 15px;
+		}
+		.receipt-field {
+			margin-left: 0 !important;
+			margin-top: 15px;
+		}
+		.field-label {
+			font-size: 0.85rem;
+		}
+		.field-value {
+			font-size: 0.9rem;
+		}
+		.translation-val {
+			font-size: 0.75rem;
+		}
+	}
+
+	/* Landscape force for PDF download */
+	.force-landscape .receipt-row {
+		display: flex !important;
+		flex-direction: row !important;
+	}
+	.force-landscape .receipt-field {
+		display: flex !important;
+	}
+
+	/* Print styles */
+	@media print {
+		@page {
+			size: landscape;
+			margin: 0.4in;
+		}
+
+		body {
+			background: white !important;
+			color: black !important;
+		}
+
+		.no-print {
+			display: none !important;
+		}
+
+		.receipt-container {
+			width: 100% !important;
+			max-width: 100% !important;
+			margin: 0 !important;
+			padding: 0 !important;
+		}
+
+		.receipt-card {
+			width: 90% !important;
+			margin: 0 auto !important;
+			border: 2px solid #000000 !important;
+			border-radius: 8px !important;
+			box-shadow: none !important;
+			padding: 0 !important;
+		}
+
+		.receipt-border {
+			padding: 30px !important;
+		}
+
+		/* Ensure grid layout stays side-by-side on print */
+		.row {
+			display: flex !important;
+			flex-wrap: nowrap !important;
+		}
+
+		.receipt-row {
+			display: flex !important;
+			flex-direction: row !important;
+			margin-bottom: 25px !important;
+		}
+
+		.receipt-field {
+			display: flex !important;
+		}
+
+		.field-value {
+			border-bottom: 1.5px solid #000000 !important;
+			-webkit-print-color-adjust: exact;
+			print-color-adjust: exact;
+		}
+	}
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script>
+	document.addEventListener("DOMContentLoaded", function() {
+		const downloadBtn = document.getElementById('download_pdf_btn');
+		if (downloadBtn) {
+			downloadBtn.addEventListener('click', function() {
+				const originalText = downloadBtn.innerHTML;
+				downloadBtn.disabled = true;
+				downloadBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-1"></i> Downloading...';
+
+				const element = document.querySelector('.receipt-card');
+				if (element) element.classList.add('force-landscape');
+				const opt = {
+					margin:       [0.4, 0.4, 0.4, 0.4],
+					filename:     'Receipt-' + '{{ donation.name }}' + '.pdf',
+					image:        { type: 'jpeg', quality: 0.98 },
+					html2canvas:  { scale: 2, useCORS: true },
+					jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' }
+				};
+
+				setTimeout(function() {
+					html2pdf().set(opt).from(element).save().then(() => {
+						if (element) element.classList.remove('force-landscape');
+						downloadBtn.disabled = false;
+						downloadBtn.innerHTML = originalText;
+					}).catch(err => {
+						console.error(err);
+						if (element) element.classList.remove('force-landscape');
+						downloadBtn.disabled = false;
+						downloadBtn.innerHTML = originalText;
+					});
+				}, 100);
+			});
+		}
+	});
+</script>
+{% endblock %}

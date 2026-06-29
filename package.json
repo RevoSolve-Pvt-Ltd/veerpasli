@@ -1,5 +1,11 @@
 {
   "dependencies": {
-    "chrome-lens-ocr": "^4.1.1"
+    "chrome-lens-ocr": "^4.1.1",
+    "vite": "^2.7.2"
+  },
+  "scripts": {
+    "postinstall": "cd donation && yarn install --check-files",
+    "dev": "cd donation && yarn dev",
+    "build": "cd donation && yarn build"
   }
 }
