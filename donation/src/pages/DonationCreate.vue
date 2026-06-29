@@ -287,19 +287,86 @@
             Save Donation
           </Button>
         </div>
+        <!-- Confirmation Dialog -->
+        <Dialog
+          v-model="showConfirmDialog"
+          :options="{
+            title: 'Confirm Donation Details',
+            size: 'md'
+          }"
+        >
+          <template #body-content>
+            <div class="mt-4 space-y-3 text-sm text-gray-700">
+              <p class="font-medium text-gray-900 border-b pb-2 mb-3">Please verify the donation details before saving:</p>
+              
+              <div class="grid grid-cols-3 gap-2">
+                <span class="font-semibold text-gray-500">Date / તારીખ:</span>
+                <span class="col-span-2 font-medium">{{ form.donation_date }}</span>
+              </div>
+
+              <div class="grid grid-cols-3 gap-2">
+                <span class="font-semibold text-gray-500">Donor Name:</span>
+                <span class="col-span-2 font-bold text-indigo-700">
+                  {{ form.donor_name_guj }}
+                  <span v-if="form.donor_name_eng" class="text-gray-500 font-normal">({{ form.donor_name_eng }})</span>
+                </span>
+              </div>
+
+              <div class="grid grid-cols-3 gap-2" v-if="form.mobile">
+                <span class="font-semibold text-gray-500">Phone / ફોન:</span>
+                <span class="col-span-2">{{ form.mobile }}</span>
+              </div>
+
+              <div class="grid grid-cols-3 gap-2">
+                <span class="font-semibold text-gray-500">Village / ગામ:</span>
+                <span class="col-span-2">{{ form.village }}</span>
+              </div>
+
+              <div class="grid grid-cols-3 gap-2">
+                <span class="font-semibold text-gray-500">Location / સ્થળ:</span>
+                <span class="col-span-2">{{ form.location }}</span>
+              </div>
+
+              <div class="grid grid-cols-3 gap-2 border-t pt-2 mt-2">
+                <span class="font-semibold text-gray-500 text-green-700">Amount / રકમ:</span>
+                <span class="col-span-2 text-lg font-extrabold text-green-600">₹{{ form.amount }} /-</span>
+              </div>
+
+              <div class="grid grid-cols-3 gap-2 border-t pt-2 mt-2" v-if="hastes && hastes.filter(h => h.displayText).length > 0">
+                <span class="font-semibold text-gray-500">Haste / હસ્તે:</span>
+                <span class="col-span-2">
+                  <span v-for="(h, idx) in hastes.filter(h => h.displayText)" :key="idx" class="inline-block bg-yellow-50 text-yellow-800 border border-yellow-200 px-2 py-0.5 rounded mr-1 mb-1 text-xs">
+                    {{ h.displayText }}
+                  </span>
+                </span>
+              </div>
+            </div>
+          </template>
+
+          <template #actions="{ close }">
+            <div class="flex justify-end space-x-2">
+              <Button appearance="secondary" @click="close">
+                Cancel
+              </Button>
+              <Button appearance="primary" @click="confirmAndSubmitForm">
+                Confirm & Save
+              </Button>
+            </div>
+          </template>
+        </Dialog>
       </div>
     </div>
   </div>
 </template>
 
 <script>
-import { Button, Input, Autocomplete, FeatherIcon, LoadingIndicator, Alert } from 'frappe-ui'
+import { Button, Input, Autocomplete, FeatherIcon, LoadingIndicator, Alert, Dialog } from 'frappe-ui'
 import { getFormContext, searchDonor, getTranslation, createWebDonation, getLoginUrl } from '@/utils/api'
 
 export default {
   name: 'DonationCreate',
 
-  components: { Button, Input, Autocomplete, FeatherIcon, LoadingIndicator, Alert },
+  components: { Button, Input, Autocomplete, FeatherIcon, LoadingIndicator, Alert, Dialog },
 
   data() {
     return {
@@ -308,6 +375,7 @@ export default {
       submitting: false,
       successMsg: null,
       formError: null,
+      showConfirmDialog: false,
 
       // Context
       collector: {},
@@ -527,7 +595,7 @@ export default {
     },
 
     // ── Submit ────────────────────────────────────────────
-    async submitForm() {
+    submitForm() {
       this.formError = null
       this.successMsg = null
 
@@ -537,6 +605,15 @@ export default {
       if (!this.form.village) { this.formError = 'Village is required.'; return }
       if (!this.form.location) { this.formError = 'Location is required.'; return }
 
+      this.showConfirmDialog = true
+    },
+
+    async confirmAndSubmitForm() {
+      this.showConfirmDialog = false
+      this.formError = null
+      this.successMsg = null
+
+      const amount = parseInt(this.form.amount)
       const hasteValues = this.hastes
         .map((h) => (h.personId ? h.personId : h.displayText.trim()))
         .filter(Boolean)

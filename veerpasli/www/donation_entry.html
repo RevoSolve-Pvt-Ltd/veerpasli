@@ -158,6 +158,55 @@
 			</form>
 		</div>
 	</div>
+
+	<!-- Custom Confirmation Modal -->
+	<div id="confirmModal" class="custom-modal-overlay" style="display: none;">
+		<div class="custom-modal-content card shadow">
+			<div class="card-header bg-primary text-white font-weight-bold">
+				<i class="fa fa-question-circle mr-2"></i> Confirm Donation Details
+			</div>
+			<div class="card-body">
+				<p class="font-weight-bold text-muted mb-3" style="font-size: 0.9rem;">Please verify the donation details before saving:</p>
+				<table class="table table-sm table-bordered mb-3" style="font-size: 0.95rem;">
+					<tr>
+						<th class="bg-light" style="width: 35%;">Date / તારીખ</th>
+						<td id="confirm_date" class="font-weight-bold"></td>
+					</tr>
+					<tr>
+						<th class="bg-light">Donor Name / દાતા</th>
+						<td>
+							<span id="confirm_name_guj" class="font-weight-bold text-primary"></span>
+							<span id="confirm_name_eng" class="text-muted small"></span>
+						</td>
+					</tr>
+					<tr id="confirm_phone_row">
+						<th class="bg-light">Phone / ફોન</th>
+						<td id="confirm_phone"></td>
+					</tr>
+					<tr>
+						<th class="bg-light">Village / ગામ</th>
+						<td id="confirm_village"></td>
+					</tr>
+					<tr>
+						<th class="bg-light">Location / સ્થળ</th>
+						<td id="confirm_location"></td>
+					</tr>
+					<tr>
+						<th class="bg-light text-success font-weight-bold">Amount / રકમ</th>
+						<td class="text-success font-weight-bold" style="font-size: 1.15rem;" id="confirm_amount"></td>
+					</tr>
+					<tr id="confirm_hastes_row" style="display: none;">
+						<th class="bg-light">Haste(s) / હસ્તે</th>
+						<td id="confirm_hastes"></td>
+					</tr>
+				</table>
+				<div class="d-flex justify-content-end mt-4">
+					<button type="button" class="btn btn-secondary mr-2" id="cancelConfirmBtn">Cancel</button>
+					<button type="button" class="btn btn-primary" id="confirmSaveBtn">Confirm & Save</button>
+				</div>
+			</div>
+		</div>
+	</div>
 	{% endif %}
 </div>
 
@@ -258,6 +307,34 @@
 
 	.tracking-wide {
 		letter-spacing: 0.05em;
+	}
+
+	.custom-modal-overlay {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		background: rgba(0, 0, 0, 0.55);
+		z-index: 1050;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 15px;
+	}
+
+	.custom-modal-content {
+		max-width: 500px;
+		width: 100%;
+		border-radius: 8px;
+		overflow: hidden;
+		animation: modalFadeIn 0.25s ease-out;
+		background: #ffffff;
+	}
+
+	@keyframes modalFadeIn {
+		from { transform: scale(0.95); opacity: 0; }
+		to { transform: scale(1); opacity: 1; }
 	}
 </style>
 
@@ -522,6 +599,22 @@
 			}
 		});
 
+		// Variables to hold pending donation data
+		let pendingDonationData = null;
+
+		// Cancel button handler
+		document.getElementById('cancelConfirmBtn').addEventListener('click', function() {
+			document.getElementById('confirmModal').style.display = 'none';
+		});
+
+		// Confirm & Save button handler
+		document.getElementById('confirmSaveBtn').addEventListener('click', function() {
+			document.getElementById('confirmModal').style.display = 'none';
+			if (pendingDonationData) {
+				executeSave(pendingDonationData);
+			}
+		});
+
 		// Submit Form
 		donationForm.addEventListener('submit', function (e) {
 			e.preventDefault();
@@ -533,10 +626,6 @@
 				return;
 			}
 
-			// Disable submit button and show loading state
-			submitBtn.disabled = true;
-			submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...';
-
 			const donorData = {
 				name: donorIdInput.value,
 				gujarati_fullname: nameGujInput.value.trim(),
@@ -546,9 +635,11 @@
 
 			const hasteInputs = document.querySelectorAll('.haste-input');
 			const hastes = [];
+			const hasteTexts = [];
 			hasteInputs.forEach(input => {
 				const val = input.value.trim();
 				if (val) {
+					hasteTexts.push(val);
 					const personId = input.getAttribute('data-person-id');
 					if (personId && input.dataset.selectedName === val) {
 						hastes.push(personId);
@@ -558,16 +649,62 @@
 				}
 			});
 
+			// Populate details in the modal
+			document.getElementById('confirm_date').textContent = dateInput.value;
+			document.getElementById('confirm_name_guj').textContent = donorData.gujarati_fullname;
+			
+			const confirmNameEng = document.getElementById('confirm_name_eng');
+			if (donorData.english_fullname) {
+				confirmNameEng.textContent = ` (${donorData.english_fullname})`;
+				confirmNameEng.style.display = '';
+			} else {
+				confirmNameEng.style.display = 'none';
+			}
+
+			const phoneRow = document.getElementById('confirm_phone_row');
+			if (donorData.mobile_number) {
+				document.getElementById('confirm_phone').textContent = donorData.mobile_number;
+				phoneRow.style.display = '';
+			} else {
+				phoneRow.style.display = 'none';
+			}
+
+			document.getElementById('confirm_village').textContent = villageInput.value.trim();
+			
+			const locationText = locationInput.options[locationInput.selectedIndex].text;
+			document.getElementById('confirm_location').textContent = locationText;
+
+			document.getElementById('confirm_amount').textContent = `₹${amount} /-`;
+
+			const hastesRow = document.getElementById('confirm_hastes_row');
+			if (hasteTexts.length > 0) {
+				document.getElementById('confirm_hastes').innerHTML = hasteTexts.map(h => `<span class="badge badge-warning mr-1">${h}</span>`).join('');
+				hastesRow.style.display = '';
+			} else {
+				hastesRow.style.display = 'none';
+			}
+
+			pendingDonationData = {
+				donor_data: donorData,
+				amount: amount,
+				village: villageInput.value.trim(),
+				location: locationInput.value,
+				donation_date: dateInput.value,
+				hastes: hastes
+			};
+
+			// Show confirmation modal
+			document.getElementById('confirmModal').style.display = 'flex';
+		});
+
+		function executeSave(args) {
+			// Disable submit button and show loading state
+			submitBtn.disabled = true;
+			submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...';
+
 			frappe.call({
 				method: 'veerpasli.www.donation_entry.create_web_donation',
-				args: {
-					donor_data: donorData,
-					amount: amount,
-					village: villageInput.value.trim(),
-					location: locationInput.value,
-					donation_date: dateInput.value,
-					hastes: hastes
-				},
+				args: args,
 				callback: function (r) {
 					submitBtn.disabled = false;
 					submitBtn.innerHTML = '<i class="fa fa-check-circle"></i> Save Donation';
@@ -575,7 +712,7 @@
 					if (r.message && r.message.status === 'success') {
 						showMsg(`
 							<div class="d-flex align-items-center justify-content-between flex-wrap">
-								<span>Donation of <strong>₹${amount}</strong> from <strong>${r.message.donor_name}</strong> saved successfully!</span>
+								<span>Donation of <strong>₹${args.amount}</strong> from <strong>${r.message.donor_name}</strong> saved successfully!</span>
 								<a href="/donation_receipt?name=${encodeURIComponent(r.message.donation_id)}" target="_blank" class="btn btn-sm btn-success mt-2 mt-sm-0 ml-sm-3">
 									<i class="fa fa-file-invoice"></i> View/Download Receipt
 								</a>
@@ -601,7 +738,7 @@
 					showMsg(err.message || 'An error occurred while saving the donation.', 'danger');
 				}
 			});
-		});
+		}
 
 		function showMsg(html, type) {
 			formMsg.className = `alert alert-${type} my-3 d-block`;
